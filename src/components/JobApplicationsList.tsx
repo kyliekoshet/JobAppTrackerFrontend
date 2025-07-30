@@ -36,6 +36,11 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
   // Use prop applications if provided, otherwise use local state
   const displayApplications = propApplications.length > 0 ? propApplications : applications;
   const displayLoading = propIsLoading || loading;
+  
+  // Debug logging
+  console.log('JobApplicationsList - propApplications:', propApplications);
+  console.log('JobApplicationsList - applications (local):', applications);
+  console.log('JobApplicationsList - displayApplications:', displayApplications);
 
   const loadApplications = useCallback(async () => {
     if (propApplications.length > 0) {
@@ -96,7 +101,7 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
     return new Date(dateString).toLocaleDateString();
   };
 
-  if (loading && applications.length === 0) {
+  if (displayLoading && displayApplications.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
@@ -175,13 +180,13 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
 
       {/* Applications List */}
       <div className="space-y-4">
-        {applications.length === 0 ? (
+        {displayApplications.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm border">
             <p className="text-gray-500 text-lg">No job applications found</p>
             <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or add a new application</p>
           </div>
         ) : (
-          applications.map((application) => (
+          displayApplications.map((application) => (
             <div
               key={application.id}
               className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"

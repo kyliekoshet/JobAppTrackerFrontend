@@ -23,8 +23,10 @@ export const useLocalStorage = (): UseLocalStorageReturn => {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      console.log('Loading from localStorage:', stored);
       if (stored) {
         const parsedApplications = JSON.parse(stored);
+        console.log('Parsed applications:', parsedApplications);
         setApplications(parsedApplications);
       }
     } catch (err) {
@@ -79,6 +81,7 @@ export const useLocalStorage = (): UseLocalStorageReturn => {
   }, []);
 
   const syncWithBackend = useCallback((backendApplications: JobApplication[]) => {
+    console.log('Syncing applications to local storage:', backendApplications);
     setApplications(backendApplications);
     setError(null);
   }, []);

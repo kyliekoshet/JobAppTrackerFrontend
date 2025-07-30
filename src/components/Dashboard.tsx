@@ -70,7 +70,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return colors[status as keyof typeof colors] || 'bg-gray-500';
   };
 
-  if (loading) {
+  if (displayLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
@@ -104,13 +104,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Stats Cards */}
-      {stats && (
+      {displayStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Applications</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_applications}</p>
+                <p className="text-2xl font-bold text-gray-900">{displayStats.total_applications}</p>
               </div>
               <Briefcase className="w-8 h-8 text-blue-500" />
             </div>
@@ -120,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Recent (30 days)</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.recent_applications}</p>
+                <p className="text-2xl font-bold text-gray-900">{displayStats.recent_applications}</p>
               </div>
               <Calendar className="w-8 h-8 text-green-500" />
             </div>
@@ -131,7 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div>
                 <p className="text-sm font-medium text-gray-600">Success Rate</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.success_rate > 0 ? `${(stats.success_rate * 100).toFixed(1)}%` : '0%'}
+                  {displayStats.success_rate > 0 ? `${(displayStats.success_rate * 100).toFixed(1)}%` : '0%'}
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-yellow-500" />
@@ -143,7 +143,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Applications</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {(stats.status_breakdown['Applied'] || 0) + (stats.status_breakdown['Interviewing'] || 0)}
+                  {(displayStats.status_breakdown['Applied'] || 0) + (displayStats.status_breakdown['Interviewing'] || 0)}
                 </p>
               </div>
               <Target className="w-8 h-8 text-purple-500" />
@@ -153,11 +153,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* Status Breakdown */}
-      {stats && Object.keys(stats.status_breakdown).length > 0 && (
+      {displayStats && Object.keys(displayStats.status_breakdown).length > 0 && (
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Status Breakdown</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Object.entries(stats.status_breakdown).map(([status, count]) => (
+            {Object.entries(displayStats.status_breakdown).map(([status, count]) => (
               <div key={status} className="text-center">
                 <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${getStatusColor(status)}`}></div>
                 <p className="text-sm font-medium text-gray-900">{count}</p>

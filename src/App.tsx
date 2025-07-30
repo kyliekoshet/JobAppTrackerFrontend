@@ -16,6 +16,9 @@ function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null);
   
+  // Get applications from local storage
+  const { applications, isLoading } = useLocalStorage();
+
   // Initialize sync manager
   const {
     syncStatus,
@@ -26,12 +29,18 @@ function App() {
     forceSync
   } = useSyncManager();
 
-  // Get applications from local storage
-  const { applications, isLoading } = useLocalStorage();
-
   // Auto-sync on mount and when coming back online
   useEffect(() => {
-    syncWithBackend();
+    // Initial sync to load data from backend
+    const initialSync = async () => {
+      try {
+        await syncWithBackend();
+      } catch (error) {
+        console.error('Initial sync failed:', error);
+      }
+    };
+    
+    initialSync();
   }, [syncWithBackend]);
 
   const handleAddNew = () => {

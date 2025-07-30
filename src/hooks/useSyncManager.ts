@@ -60,8 +60,7 @@ export const useSyncManager = (): UseSyncManagerReturn => {
   useEffect(() => {
     const handleOnline = () => {
       setSyncStatus(prev => ({ ...prev, isOnline: true }));
-      // Auto-sync when coming back online
-      syncWithBackend();
+      // Auto-sync when coming back online - we'll call it manually
     };
 
     const handleOffline = () => {
@@ -104,11 +103,13 @@ export const useSyncManager = (): UseSyncManagerReturn => {
       const backendResponse = await jobApplicationsApi.getAll();
       const backendApplications = backendResponse.applications;
       
-      // Merge with local data (backend takes precedence for conflicts)
-      const mergedApplications = mergeApplications(applications, backendApplications);
+      console.log('Backend applications:', backendApplications);
       
-      // Update local storage
-      syncLocalStorage(mergedApplications);
+      // If we have backend data, use it directly (no merging needed for initial load)
+      if (backendApplications && backendApplications.length > 0) {
+        syncLocalStorage(backendApplications);
+        console.log('Synced applications to local storage');
+      }
       
       updateLastSync();
       updatePendingChanges(-syncStatus.pendingChanges); // Clear pending changes
@@ -126,7 +127,7 @@ export const useSyncManager = (): UseSyncManagerReturn => {
         error: 'Failed to sync with backend' 
       }));
     }
-  }, [applications, syncLocalStorage, syncStatus.isSyncing, syncStatus.pendingChanges, updateLastSync, updatePendingChanges]);
+  }, [syncLocalStorage, syncStatus.isSyncing, syncStatus.pendingChanges, updateLastSync, updatePendingChanges]);
 
   // Add application with sync
   const addApplicationWithSync = useCallback(async (applicationData: JobApplicationCreate): Promise<JobApplication | null> => {
