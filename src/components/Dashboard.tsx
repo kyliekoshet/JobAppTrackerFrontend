@@ -1,33 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { jobApplicationsApi } from '../services/api';
+import { SyncStatus } from './SyncStatus';
 import { SummaryStats } from '../types/jobApplication';
 import { Plus, Briefcase, TrendingUp, Calendar, Target, Loader2 } from 'lucide-react';
 
 interface DashboardProps {
   onAddNew: () => void;
   onViewAll: () => void;
+  stats?: SummaryStats | null;
+  isLoading?: boolean;
+  syncStatus?: {
+    isOnline: boolean;
+    lastSync: Date | null;
+    pendingChanges: number;
+    isSyncing: boolean;
+    error: string | null;
+  };
+  onForceSync?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   onAddNew,
-  onViewAll
+  onViewAll,
+  stats: propStats,
+  isLoading: propIsLoading = false,
+  syncStatus,
+  onForceSync
 }) => {
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Use prop stats if provided, otherwise use local state
+  const displayStats = propStats || stats;
+  const displayLoading = propIsLoading || loading;
+
   useEffect(() => {
-    loadStats();
-  }, []);
+    if (!propStats) {
+      // Only load stats if not provided via props
+      loadStats();
+    }
+  }, [propStats]);
 
   const loadStats = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const data = await jobApplicationsApi.getStats();
-      setStats(data);
+      // For now, we'll use local state if no prop stats provided
+      // This can be enhanced later with local storage fallback
+      setStats(null);
     } catch (err) {
       console.error('Failed to load stats:', err);
       setError('Failed to load statistics');
@@ -146,18 +168,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="flex flex-wrap gap-4">
-          <Button onClick={onAddNew} variant="outline" className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Add New Application
-          </Button>
-          <Button onClick={onViewAll} variant="outline" className="flex items-center gap-2">
-            <Briefcase className="w-4 h-4" />
-            View All Applications
-          </Button>
+      {/* Sync Status and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Sync Status */}
+        {syncStatus && onForceSync && (
+          <div className="lg:col-span-1">
+            <SyncStatus
+              isOnline={syncStatus.isOnline}
+              lastSync={syncStatus.lastSync}
+              pendingChanges={syncStatus.pendingChanges}
+              isSyncing={syncStatus.isSyncing}
+              error={syncStatus.error}
+              onForceSync={onForceSync}
+            />
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border lg:col-span-2">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="flex flex-wrap gap-4">
+            <Button onClick={onAddNew} variant="outline" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add New Application
+            </Button>
+            <Button onClick={onViewAll} variant="outline" className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              View All Applications
+            </Button>
+          </div>
         </div>
       </div>
 

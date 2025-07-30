@@ -6,8 +6,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select } from './ui/select';
-import { jobScrapingApi, jobApplicationsApi } from '../services/api';
-import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES } from '../types/jobApplication';
+import { jobScrapingApi } from '../services/api';
+import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, JobApplicationCreate } from '../types/jobApplication';
 import { Loader2, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 
 // Form validation schema
@@ -30,11 +30,13 @@ type JobApplicationFormData = z.infer<typeof jobApplicationSchema>;
 interface JobApplicationFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  onAddApplication?: (application: JobApplicationCreate) => Promise<any>;
 }
 
 export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
   onSuccess,
-  onCancel
+  onCancel,
+  onAddApplication
 }) => {
   const [isScraping, setIsScraping] = useState(false);
   const [scrapingResult, setScrapingResult] = useState<{
@@ -115,7 +117,9 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      await jobApplicationsApi.create(data);
+      if (onAddApplication) {
+        await onAddApplication(data);
+      }
       reset();
       setScrapingResult(null);
       onSuccess?.();

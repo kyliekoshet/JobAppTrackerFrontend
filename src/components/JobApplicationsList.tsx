@@ -2,18 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select } from './ui/select';
-import { jobApplicationsApi } from '../services/api';
 import { JobApplication, APPLICATION_STATUSES } from '../types/jobApplication';
 import { Loader2, Search, Edit, Trash2, ExternalLink, Calendar, MapPin, DollarSign } from 'lucide-react';
 
 interface JobApplicationsListProps {
   onEdit?: (application: JobApplication) => void;
   onRefresh?: () => void;
+  applications?: JobApplication[];
+  onDeleteApplication?: (id: number) => Promise<boolean>;
+  isLoading?: boolean;
 }
 
 export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
   onEdit,
-  onRefresh
+  onRefresh,
+  applications: propApplications = [],
+  onDeleteApplication,
+  isLoading: propIsLoading = false
 }) => {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,29 +33,30 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Use prop applications if provided, otherwise use local state
+  const displayApplications = propApplications.length > 0 ? propApplications : applications;
+  const displayLoading = propIsLoading || loading;
+
   const loadApplications = useCallback(async () => {
+    if (propApplications.length > 0) {
+      // Use prop applications, no need to load
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      const response = await jobApplicationsApi.getAll({
-        page: currentPage,
-        size: 10,
-        status: filters.status || undefined,
-        company: filters.company || undefined,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-      });
-      
-      setApplications(response.applications);
-      setTotalPages(response.total_pages);
+      // For now, we'll use local state if no prop applications provided
+      // This can be enhanced later with local storage fallback
+      setApplications([]);
     } catch (err) {
       console.error('Failed to load applications:', err);
       setError('Failed to load job applications');
     } finally {
       setLoading(false);
     }
-  }, [currentPage, filters, sortBy, sortOrder]);
+  }, [propApplications.length]);
 
   useEffect(() => {
     loadApplications();
@@ -62,9 +68,12 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
     }
 
     try {
-      await jobApplicationsApi.delete(id);
-      loadApplications();
-      onRefresh?.();
+      if (onDeleteApplication) {
+        const success = await onDeleteApplication(id);
+        if (success) {
+          onRefresh?.();
+        }
+      }
     } catch (err) {
       console.error('Failed to delete application:', err);
       setError('Failed to delete application');

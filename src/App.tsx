@@ -1,18 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './index.css';
 import { Dashboard } from './components/Dashboard';
 import { JobApplicationForm } from './components/JobApplicationForm';
 import { JobApplicationsList } from './components/JobApplicationsList';
+import { SyncStatus } from './components/SyncStatus';
 import { JobApplication } from './types/jobApplication';
 import { Button } from './components/ui/button';
 import { ArrowLeft, Home, Plus, List } from 'lucide-react';
+import { useSyncManager } from './hooks/useSyncManager';
+import { useLocalStorage } from './hooks/useLocalStorage';
 
 type View = 'dashboard' | 'add' | 'list' | 'edit';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null);
+  
+  // Initialize sync manager
+  const {
+    syncStatus,
+    syncWithBackend,
+    addApplicationWithSync,
+    updateApplicationWithSync,
+    deleteApplicationWithSync,
+    forceSync
+  } = useSyncManager();
+
+  // Get applications from local storage
+  const { applications, isLoading } = useLocalStorage();
+
+  // Auto-sync on mount and when coming back online
+  useEffect(() => {
+    syncWithBackend();
+  }, [syncWithBackend]);
 
   const handleAddNew = () => {
     setCurrentView('add');
@@ -44,6 +64,8 @@ function App() {
           <Dashboard
             onAddNew={handleAddNew}
             onViewAll={handleViewAll}
+            syncStatus={syncStatus}
+            onForceSync={forceSync}
           />
         );
       case 'add':
@@ -58,6 +80,7 @@ function App() {
             <JobApplicationForm
               onSuccess={handleSuccess}
               onCancel={handleBack}
+              onAddApplication={addApplicationWithSync}
             />
           </div>
         );
@@ -80,6 +103,9 @@ function App() {
             <JobApplicationsList
               onEdit={handleEdit}
               onRefresh={() => setCurrentView('dashboard')}
+              applications={applications}
+              onDeleteApplication={deleteApplicationWithSync}
+              isLoading={isLoading}
             />
           </div>
         );
@@ -95,6 +121,7 @@ function App() {
             <JobApplicationForm
               onSuccess={handleSuccess}
               onCancel={handleBack}
+              onAddApplication={addApplicationWithSync}
             />
           </div>
         );
