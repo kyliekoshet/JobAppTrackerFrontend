@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select } from './ui/select';
 import { jobScrapingApi } from '../services/api';
-import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, JobApplicationCreate } from '../types/jobApplication';
+import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, REFERRAL_RELATIONSHIPS, JobApplicationCreate, JobApplication } from '../types/jobApplication';
 import { Loader2, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 
 // Form validation schema
@@ -23,6 +23,11 @@ const jobApplicationSchema = z.object({
   application_status: z.string().min(1, 'Application status is required'),
   interview_stage: z.string().min(1, 'Interview stage is required'),
   notes: z.string().optional(),
+  // Referral information
+  referred_by: z.string().optional(),
+  referral_relationship: z.string().optional(),
+  referral_date: z.string().optional(),
+  referral_notes: z.string().optional(),
 });
 
 type JobApplicationFormData = z.infer<typeof jobApplicationSchema>;
@@ -31,12 +36,16 @@ interface JobApplicationFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   onAddApplication?: (application: JobApplicationCreate) => Promise<any>;
+  onUpdateApplication?: (id: number, application: JobApplicationCreate) => Promise<any>;
+  editingApplication?: JobApplication | null;
 }
 
 export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
   onSuccess,
   onCancel,
-  onAddApplication
+  onAddApplication,
+  onUpdateApplication,
+  editingApplication
 }) => {
   const [isScraping, setIsScraping] = useState(false);
   const [scrapingResult, setScrapingResult] = useState<{
@@ -56,9 +65,21 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
   } = useForm<JobApplicationFormData>({
     resolver: zodResolver(jobApplicationSchema),
     defaultValues: {
-      application_status: 'Applied',
-      interview_stage: 'None',
-      date_applied: new Date().toISOString().split('T')[0],
+      job_title: editingApplication?.job_title || '',
+      company: editingApplication?.company || '',
+      job_description: editingApplication?.job_description || '',
+      location: editingApplication?.location || '',
+      salary: editingApplication?.salary || '',
+      job_url: editingApplication?.job_url || '',
+      date_applied: editingApplication?.date_applied ? new Date(editingApplication.date_applied).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      date_job_posted: editingApplication?.date_job_posted ? new Date(editingApplication.date_job_posted).toISOString().split('T')[0] : '',
+      application_status: editingApplication?.application_status || 'Applied',
+      interview_stage: editingApplication?.interview_stage || 'None',
+      notes: editingApplication?.notes || '',
+      referred_by: editingApplication?.referred_by || '',
+      referral_relationship: editingApplication?.referral_relationship || '',
+      referral_date: editingApplication?.referral_date ? new Date(editingApplication.referral_date).toISOString().split('T')[0] : '',
+      referral_notes: editingApplication?.referral_notes || '',
     },
   });
 
@@ -117,7 +138,11 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     setIsSubmitting(true);
     
     try {
-      if (onAddApplication) {
+      if (editingApplication && onUpdateApplication) {
+        // Update existing application
+        await onUpdateApplication(editingApplication.id!, data);
+      } else if (onAddApplication) {
+        // Create new application
         await onAddApplication(data);
       }
       reset();
@@ -136,7 +161,9 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6 text-gray-900">Add New Job Application</h2>
+      <h2 className="text-2xl font-bold mb-6 text-gray-900">
+        {editingApplication ? 'Edit Job Application' : 'Add New Job Application'}
+      </h2>
       
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Job URL and Scraping Section */}
@@ -377,6 +404,75 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
           />
         </div>
 
+        {/* Referral Information Section */}
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Referral Information (Optional)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Referred By
+              </label>
+              <Controller
+                name="referred_by"
+                control={control}
+                render={({ field }) => (
+                  <Input {...field} placeholder="John Doe" />
+                )}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Relationship
+              </label>
+              <Controller
+                name="referral_relationship"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={(value: string) => field.onChange(value)} value={field.value || ''}>
+                    <option value="">Select relationship</option>
+                    {REFERRAL_RELATIONSHIPS.map((relationship) => (
+                      <option key={relationship} value={relationship}>
+                        {relationship}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Referral Date
+              </label>
+              <Controller
+                name="referral_date"
+                control={control}
+                render={({ field }) => (
+                  <Input {...field} type="date" />
+                )}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Referral Notes
+            </label>
+            <Controller
+              name="referral_notes"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  placeholder="Additional notes about the referral..."
+                  rows={3}
+                />
+              )}
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Notes
@@ -407,7 +503,7 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
                 Saving...
               </>
             ) : (
-              'Save Application'
+              editingApplication ? 'Update Application' : 'Save Application'
             )}
           </Button>
           {onCancel && (

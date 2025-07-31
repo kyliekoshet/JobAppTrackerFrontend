@@ -3,6 +3,7 @@ import './index.css';
 import { Dashboard } from './components/Dashboard';
 import { JobApplicationForm } from './components/JobApplicationForm';
 import { JobApplicationsList } from './components/JobApplicationsList';
+import { JobApplicationDetails } from './components/JobApplicationDetails';
 import { SyncStatus } from './components/SyncStatus';
 import { JobApplication } from './types/jobApplication';
 import { Button } from './components/ui/button';
@@ -10,11 +11,12 @@ import { ArrowLeft, Home, Plus, List } from 'lucide-react';
 import { useSyncManager } from './hooks/useSyncManager';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
-type View = 'dashboard' | 'add' | 'list' | 'edit';
+type View = 'dashboard' | 'add' | 'list' | 'edit' | 'details';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
   
   // Get applications from local storage
   const { applications, isLoading } = useLocalStorage();
@@ -29,7 +31,7 @@ function App() {
     forceSync
   } = useSyncManager();
 
-  // Auto-sync on mount and when coming back online
+  // Auto-sync on mount only
   useEffect(() => {
     // Initial sync to load data from backend
     const initialSync = async () => {
@@ -41,7 +43,7 @@ function App() {
     };
     
     initialSync();
-  }, [syncWithBackend]);
+  }, []); // Remove syncWithBackend from dependencies
 
   const handleAddNew = () => {
     setCurrentView('add');
@@ -56,14 +58,21 @@ function App() {
     setCurrentView('edit');
   };
 
+  const handleViewDetails = (application: JobApplication) => {
+    setSelectedApplication(application);
+    setCurrentView('details');
+  };
+
   const handleBack = () => {
     setCurrentView('dashboard');
     setEditingApplication(null);
+    setSelectedApplication(null);
   };
 
   const handleSuccess = () => {
     setCurrentView('dashboard');
     setEditingApplication(null);
+    setSelectedApplication(null);
   };
 
   const renderView = () => {
@@ -111,6 +120,7 @@ function App() {
             </div>
             <JobApplicationsList
               onEdit={handleEdit}
+              onViewDetails={handleViewDetails}
               onRefresh={() => setCurrentView('dashboard')}
               applications={applications}
               onDeleteApplication={deleteApplicationWithSync}
@@ -131,7 +141,24 @@ function App() {
               onSuccess={handleSuccess}
               onCancel={handleBack}
               onAddApplication={addApplicationWithSync}
+              onUpdateApplication={updateApplicationWithSync}
+              editingApplication={editingApplication}
             />
+          </div>
+        );
+      case 'details':
+        return selectedApplication ? (
+          <JobApplicationDetails
+            application={selectedApplication}
+            onBack={handleBack}
+            onEdit={handleEdit}
+          />
+        ) : (
+          <div className="text-center p-8">
+            <p className="text-gray-500">No application selected</p>
+            <Button onClick={handleBack} className="mt-4">
+              Back to Dashboard
+            </Button>
           </div>
         );
       default:

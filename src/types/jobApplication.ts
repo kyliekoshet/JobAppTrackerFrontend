@@ -11,6 +11,11 @@ export interface JobApplication {
   application_status: string;
   interview_stage: string;
   notes?: string;
+  // Referral information
+  referred_by?: string;
+  referral_relationship?: string;
+  referral_date?: string;
+  referral_notes?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -27,6 +32,11 @@ export interface JobApplicationCreate {
   application_status: string;
   interview_stage: string;
   notes?: string;
+  // Referral information
+  referred_by?: string;
+  referral_relationship?: string;
+  referral_date?: string;
+  referral_notes?: string;
 }
 
 export interface JobApplicationUpdate {
@@ -41,6 +51,11 @@ export interface JobApplicationUpdate {
   application_status?: string;
   interview_stage?: string;
   notes?: string;
+  // Referral information
+  referred_by?: string;
+  referral_relationship?: string;
+  referral_date?: string;
+  referral_notes?: string;
 }
 
 export interface ScrapedJobData {
@@ -99,4 +114,79 @@ export const INTERVIEW_STAGES = [
   "Coding Challenge",
   "Onsite",
   "Final Round"
+] as const;
+
+// Follow-up types
+export interface FollowUp {
+  id?: number;
+  job_application_id: number;
+  follow_up_type: string;
+  title: string;
+  description?: string;
+  date: string;
+  status: string;
+  outcome?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FollowUpCreate {
+  follow_up_type: string;
+  title: string;
+  description?: string;
+  date: string;
+  status: string;
+  outcome?: string;
+  notes?: string;
+}
+
+export interface FollowUpUpdate {
+  follow_up_type?: string;
+  title?: string;
+  description?: string;
+  date?: string;
+  status?: string;
+  outcome?: string;
+  notes?: string;
+}
+
+export interface JobApplicationWithFollowUps extends JobApplication {
+  follow_ups: FollowUp[];
+}
+
+export const FOLLOW_UP_TYPES = [
+  "Phone Call",
+  "Email", 
+  "Interview",
+  "Follow-up",
+  "Technical Interview",
+  "Behavioral Interview", 
+  "System Design",
+  "Coding Challenge",
+  "Onsite",
+  "Final Round",
+  "Reference Check",
+  "Background Check",
+  "Offer Discussion"
+] as const;
+
+export const FOLLOW_UP_STATUSES = [
+  "Pending",
+  "Completed", 
+  "Cancelled",
+  "Rescheduled"
+] as const;
+
+export const REFERRAL_RELATIONSHIPS = [
+  "Former colleague",
+  "Current colleague",
+  "Friend",
+  "Family member",
+  "LinkedIn connection",
+  "Alumni",
+  "Mentor",
+  "Recruiter",
+  "Hiring manager",
+  "Other"
 ] as const; 

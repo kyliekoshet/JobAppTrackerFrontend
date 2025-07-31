@@ -78,10 +78,12 @@ export const useSyncManager = (): UseSyncManagerReturn => {
 
   // Update pending changes count
   const updatePendingChanges = useCallback((change: number) => {
-    const newCount = Math.max(0, syncStatus.pendingChanges + change);
-    setSyncStatus(prev => ({ ...prev, pendingChanges: newCount }));
-    localStorage.setItem(PENDING_CHANGES_KEY, newCount.toString());
-  }, [syncStatus.pendingChanges]);
+    setSyncStatus(prev => {
+      const newCount = Math.max(0, prev.pendingChanges + change);
+      localStorage.setItem(PENDING_CHANGES_KEY, newCount.toString());
+      return { ...prev, pendingChanges: newCount };
+    });
+  }, []);
 
   // Update last sync time
   const updateLastSync = useCallback(() => {
@@ -112,7 +114,11 @@ export const useSyncManager = (): UseSyncManagerReturn => {
       }
       
       updateLastSync();
-      updatePendingChanges(-syncStatus.pendingChanges); // Clear pending changes
+      // Clear pending changes using functional update
+      setSyncStatus(prev => {
+        localStorage.setItem(PENDING_CHANGES_KEY, '0');
+        return { ...prev, pendingChanges: 0 };
+      });
       
       setSyncStatus(prev => ({ 
         ...prev, 
@@ -127,7 +133,7 @@ export const useSyncManager = (): UseSyncManagerReturn => {
         error: 'Failed to sync with backend' 
       }));
     }
-  }, [syncLocalStorage, syncStatus.isSyncing, syncStatus.pendingChanges, updateLastSync, updatePendingChanges]);
+  }, [syncLocalStorage, updateLastSync, updatePendingChanges]); // Remove syncStatus dependencies
 
   // Add application with sync
   const addApplicationWithSync = useCallback(async (applicationData: JobApplicationCreate): Promise<JobApplication | null> => {

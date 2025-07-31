@@ -4,6 +4,10 @@ import {
   JobApplicationCreate,
   JobApplicationUpdate,
   JobApplicationList,
+  JobApplicationWithFollowUps,
+  FollowUp,
+  FollowUpCreate,
+  FollowUpUpdate,
   ScrapingRequest,
   ScrapingResponse,
   SummaryStats
@@ -69,6 +73,57 @@ export const jobScrapingApi = {
   // Scrape job details from URL
   scrapeJob: async (url: string): Promise<ScrapingResponse> => {
     const response = await api.post('/scrape-job', { url } as ScrapingRequest);
+    return response.data;
+  },
+};
+
+// Follow-ups API
+export const followUpsApi = {
+  // Get all follow-ups for a job application
+  getByApplication: async (applicationId: number): Promise<FollowUp[]> => {
+    const response = await api.get(`/job-applications/${applicationId}/follow-ups`);
+    return response.data;
+  },
+
+  // Create a new follow-up
+  create: async (applicationId: number, data: FollowUpCreate): Promise<FollowUp> => {
+    const response = await api.post(`/job-applications/${applicationId}/follow-ups`, data);
+    return response.data;
+  },
+
+  // Update a follow-up
+  update: async (followUpId: number, data: FollowUpUpdate): Promise<FollowUp> => {
+    const response = await api.put(`/follow-ups/${followUpId}`, data);
+    return response.data;
+  },
+
+  // Delete a follow-up
+  delete: async (followUpId: number): Promise<void> => {
+    await api.delete(`/follow-ups/${followUpId}`);
+  },
+
+  // Get a specific follow-up
+  getById: async (followUpId: number): Promise<FollowUp> => {
+    const response = await api.get(`/follow-ups/${followUpId}`);
+    return response.data;
+  },
+
+  // Get all follow-ups with optional filtering
+  getAll: async (params?: {
+    status?: string;
+    follow_up_type?: string;
+    application_id?: number;
+  }): Promise<FollowUp[]> => {
+    const response = await api.get('/follow-ups', { params });
+    return response.data;
+  },
+};
+
+// Job application with follow-ups API
+export const jobApplicationWithFollowUpsApi = {
+  // Get a job application with all its follow-ups
+  getById: async (applicationId: number): Promise<JobApplicationWithFollowUps> => {
+    const response = await api.get(`/job-applications/${applicationId}/with-follow-ups`);
     return response.data;
   },
 };

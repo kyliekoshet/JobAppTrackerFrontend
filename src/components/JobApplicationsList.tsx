@@ -3,10 +3,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select } from './ui/select';
 import { JobApplication, APPLICATION_STATUSES } from '../types/jobApplication';
-import { Loader2, Search, Edit, Trash2, ExternalLink, Calendar, MapPin, DollarSign } from 'lucide-react';
+import { Loader2, Search, Edit, Trash2, ExternalLink, Calendar, MapPin, DollarSign, Eye, User } from 'lucide-react';
 
 interface JobApplicationsListProps {
   onEdit?: (application: JobApplication) => void;
+  onViewDetails?: (application: JobApplication) => void;
   onRefresh?: () => void;
   applications?: JobApplication[];
   onDeleteApplication?: (id: number) => Promise<boolean>;
@@ -15,6 +16,7 @@ interface JobApplicationsListProps {
 
 export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
   onEdit,
+  onViewDetails,
   onRefresh,
   applications: propApplications = [],
   onDeleteApplication,
@@ -200,6 +202,12 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(application.application_status)}`}>
                       {application.application_status}
                     </span>
+                    {application.referred_by && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                        <User className="w-3 h-3" />
+                        Referred
+                      </div>
+                    )}
                   </div>
                   
                   <p className="text-gray-600 font-medium mb-2">
@@ -227,6 +235,15 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
                 </div>
                 
                 <div className="flex gap-2">
+                  {onViewDetails && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onViewDetails(application)}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  )}
                   {application.job_url && (
                     <Button
                       variant="outline"
