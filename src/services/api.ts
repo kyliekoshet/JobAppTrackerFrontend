@@ -52,7 +52,9 @@ export const jobApplicationsApi = {
 
   // Update a job application
   update: async (id: number, data: JobApplicationUpdate): Promise<JobApplication> => {
+    console.log('API update request:', { id, data });
     const response = await api.put(`/job-applications/${id}`, data);
+    console.log('API update response:', response.data);
     return response.data;
   },
 

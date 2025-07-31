@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select } from './ui/select';
 import { jobScrapingApi } from '../services/api';
-import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, REFERRAL_RELATIONSHIPS, JobApplicationCreate, JobApplication } from '../types/jobApplication';
+import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, REFERRAL_RELATIONSHIPS, JobApplicationCreate, JobApplication, JobApplicationUpdate } from '../types/jobApplication';
 import { Loader2, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 
 // Form validation schema
@@ -36,7 +36,7 @@ interface JobApplicationFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   onAddApplication?: (application: JobApplicationCreate) => Promise<any>;
-  onUpdateApplication?: (id: number, application: JobApplicationCreate) => Promise<any>;
+  onUpdateApplication?: (id: number, application: JobApplicationUpdate) => Promise<any>;
   editingApplication?: JobApplication | null;
 }
 
@@ -139,11 +139,47 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     
     try {
       if (editingApplication && onUpdateApplication) {
-        // Update existing application
-        await onUpdateApplication(editingApplication.id!, data);
+        // Update existing application - convert dates for update
+        const updateData: JobApplicationUpdate = {
+          job_title: data.job_title,
+          company: data.company,
+          job_description: data.job_description,
+          location: data.location,
+          salary: data.salary,
+          job_url: data.job_url,
+          date_applied: data.date_applied ? new Date(data.date_applied).toISOString() : undefined,
+          date_job_posted: data.date_job_posted ? new Date(data.date_job_posted).toISOString() : undefined,
+          application_status: data.application_status,
+          interview_stage: data.interview_stage,
+          notes: data.notes,
+          referred_by: data.referred_by,
+          referral_relationship: data.referral_relationship,
+          referral_date: data.referral_date ? new Date(data.referral_date).toISOString() : undefined,
+          referral_notes: data.referral_notes,
+        };
+        
+        console.log('Sending update data:', updateData);
+        await onUpdateApplication(editingApplication.id!, updateData);
       } else if (onAddApplication) {
-        // Create new application
-        await onAddApplication(data);
+        // Create new application - ensure required fields are present
+        const createData: JobApplicationCreate = {
+          job_title: data.job_title,
+          company: data.company,
+          job_description: data.job_description,
+          location: data.location,
+          salary: data.salary,
+          job_url: data.job_url,
+          date_applied: new Date(data.date_applied).toISOString(),
+          date_job_posted: data.date_job_posted ? new Date(data.date_job_posted).toISOString() : undefined,
+          application_status: data.application_status,
+          interview_stage: data.interview_stage,
+          notes: data.notes,
+          referred_by: data.referred_by,
+          referral_relationship: data.referral_relationship,
+          referral_date: data.referral_date ? new Date(data.referral_date).toISOString() : undefined,
+          referral_notes: data.referral_notes,
+        };
+        await onAddApplication(createData);
       }
       reset();
       setScrapingResult(null);

@@ -173,11 +173,20 @@ export const useSyncManager = (): UseSyncManagerReturn => {
 
   // Update application with sync
   const updateApplicationWithSync = useCallback(async (id: number, updates: JobApplicationUpdate): Promise<boolean> => {
+    console.log('updateApplicationWithSync called with:', { id, updates });
     try {
       if (navigator.onLine) {
         // Try to update backend first
+        console.log('Updating backend...');
         await jobApplicationsApi.update(id, updates);
-        updateApplication(id, updates);
+        
+        // Fetch the complete updated application from backend
+        console.log('Fetching updated application...');
+        const updatedApplication = await jobApplicationsApi.getById(id);
+        console.log('Received updated application:', updatedApplication);
+        
+        // Update local state with the complete updated application
+        updateApplication(id, updatedApplication);
         updateLastSync();
         return true;
       } else {

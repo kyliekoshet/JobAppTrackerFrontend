@@ -57,11 +57,19 @@ export const useLocalStorage = (): UseLocalStorageReturn => {
     setError(null);
   }, []);
 
-  const updateApplication = useCallback((id: number, updates: Partial<JobApplication>) => {
+  const updateApplication = useCallback((id: number, updates: Partial<JobApplication> | JobApplication) => {
     setApplications(prev => {
-      const updatedApplications = prev.map(app => 
-        app.id === id ? { ...app, ...updates, updated_at: new Date().toISOString() } : app
-      );
+      const updatedApplications = prev.map(app => {
+        if (app.id === id) {
+          // If updates is a complete JobApplication object, use it directly
+          if ('id' in updates && updates.id === id) {
+            return updates as JobApplication;
+          }
+          // Otherwise, merge partial updates
+          return { ...app, ...updates, updated_at: new Date().toISOString() };
+        }
+        return app;
+      });
       return updatedApplications;
     });
     setError(null);
