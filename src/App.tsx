@@ -4,7 +4,7 @@ import { Dashboard } from './components/Dashboard';
 import { JobApplicationForm } from './components/JobApplicationForm';
 import { JobApplicationsList } from './components/JobApplicationsList';
 import { JobApplicationDetails } from './components/JobApplicationDetails';
-import { SyncStatus } from './components/SyncStatus';
+
 import { Login } from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { JobApplication } from './types/jobApplication';
@@ -121,15 +121,6 @@ const AuthenticatedApp: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              <SyncStatus 
-                isOnline={isOnline}
-                lastSync={null} // No longer tracking last sync from local storage
-                pendingChanges={0} // No longer tracking pending changes from local storage
-                isSyncing={isSyncing}
-                error={error}
-                onForceSync={refreshApplications} // Use refreshApplications for force sync
-              />
-              
               {/* User Profile */}
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-500" />
@@ -200,14 +191,6 @@ const AuthenticatedApp: React.FC = () => {
           <Dashboard
             onAddNew={() => setCurrentView('add')}
             onViewAll={() => setCurrentView('list')}
-            syncStatus={{ 
-              isOnline, 
-              lastSync: null, 
-              pendingChanges: 0, 
-              isSyncing, 
-              error 
-            }}
-            onForceSync={refreshApplications}
             isLoading={isLoading}
           />
         )}

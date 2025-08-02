@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { SyncStatus } from './SyncStatus';
 import { SummaryStats } from '../types/jobApplication';
 import { Plus, Briefcase, TrendingUp, Calendar, Target, Loader2 } from 'lucide-react';
 
@@ -9,23 +8,13 @@ interface DashboardProps {
   onViewAll: () => void;
   stats?: SummaryStats | null;
   isLoading?: boolean;
-  syncStatus?: {
-    isOnline: boolean;
-    lastSync: Date | null;
-    pendingChanges: number;
-    isSyncing: boolean;
-    error: string | null;
-  };
-  onForceSync?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   onAddNew,
   onViewAll,
   stats: propStats,
-  isLoading: propIsLoading = false,
-  syncStatus,
-  onForceSync
+  isLoading: propIsLoading = false
 }) => {
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -168,21 +157,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Sync Status and Quick Actions */}
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sync Status */}
-        {syncStatus && onForceSync && (
-          <div className="lg:col-span-1">
-            <SyncStatus
-              isOnline={syncStatus.isOnline}
-              lastSync={syncStatus.lastSync}
-              pendingChanges={syncStatus.pendingChanges}
-              isSyncing={syncStatus.isSyncing}
-              error={syncStatus.error}
-              onForceSync={onForceSync}
-            />
-          </div>
-        )}
 
         {/* Quick Actions */}
         <div className="bg-white p-6 rounded-lg shadow-sm border lg:col-span-2">
