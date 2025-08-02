@@ -190,3 +190,18 @@ export const REFERRAL_RELATIONSHIPS = [
   "Hiring manager",
   "Other"
 ] as const; 
+
+export interface JobDescriptionEnhanceRequest {
+  job_description: string;
+  job_title?: string;
+  company?: string;
+}
+
+export interface JobDescriptionEnhanceResponse {
+  success: boolean;
+  enhanced_description?: string | null;
+  key_requirements?: string | null;
+  key_responsibilities?: string | null;
+  benefits?: string | null;
+  error?: string | null;
+} 

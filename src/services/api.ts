@@ -10,7 +10,9 @@ import {
   FollowUpUpdate,
   ScrapingRequest,
   ScrapingResponse,
-  SummaryStats
+  SummaryStats,
+  JobDescriptionEnhanceRequest,
+  JobDescriptionEnhanceResponse
 } from '../types/jobApplication';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
@@ -76,6 +78,26 @@ export const jobScrapingApi = {
   scrapeJob: async (url: string): Promise<ScrapingResponse> => {
     try {
       const response = await api.post('/scrape-job', { url } as ScrapingRequest);
+      return response.data;
+    } catch (error) {
+      // Handle network errors or server errors
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.detail || error.message || 'Network error occurred',
+        };
+      }
+      return {
+        success: false,
+        error: 'An unexpected error occurred',
+      };
+    }
+  },
+
+  // Enhance job description with AI
+  enhanceJobDescription: async (request: JobDescriptionEnhanceRequest): Promise<JobDescriptionEnhanceResponse> => {
+    try {
+      const response = await api.post('/enhance-job-description', request);
       return response.data;
     } catch (error) {
       // Handle network errors or server errors

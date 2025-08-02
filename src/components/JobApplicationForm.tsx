@@ -7,8 +7,8 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select } from './ui/select';
 import { jobScrapingApi } from '../services/api';
-import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, REFERRAL_RELATIONSHIPS, JobApplicationCreate, JobApplication, JobApplicationUpdate } from '../types/jobApplication';
-import { Loader2, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
+import { ScrapedJobData, APPLICATION_STATUSES, INTERVIEW_STAGES, REFERRAL_RELATIONSHIPS, JobApplicationCreate, JobApplication, JobApplicationUpdate, JobDescriptionEnhanceResponse } from '../types/jobApplication';
+import { Loader2, ExternalLink, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 
 // Form validation schema
 const jobApplicationSchema = z.object({
@@ -54,6 +54,12 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     data?: ScrapedJobData;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancementResult, setEnhancementResult] = useState<{
+    success: boolean;
+    message: string;
+    data?: JobDescriptionEnhanceResponse;
+  } | null>(null);
 
   const {
     control,
@@ -132,6 +138,58 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
       });
     } finally {
       setIsScraping(false);
+    }
+  };
+
+  // Handle job description enhancement
+  const handleEnhanceJobDescription = async () => {
+    const currentDescription = watch('job_description');
+    const currentTitle = watch('job_title');
+    const currentCompany = watch('company');
+
+    if (!currentDescription || currentDescription.trim().length < 50) {
+      setEnhancementResult({
+        success: false,
+        message: 'Please enter a job description (at least 50 characters) before enhancing.',
+      });
+      return;
+    }
+
+    setIsEnhancing(true);
+    setEnhancementResult(null);
+
+    try {
+      const response = await jobScrapingApi.enhanceJobDescription({
+        job_description: currentDescription,
+        job_title: currentTitle || undefined,
+        company: currentCompany || undefined,
+      });
+
+      if (response.success) {
+        // Update form fields with enhanced data
+        if (response.enhanced_description) {
+          setValue('job_description', response.enhanced_description);
+        }
+
+        setEnhancementResult({
+          success: true,
+          message: 'Job description enhanced successfully!',
+          data: response,
+        });
+      } else {
+        setEnhancementResult({
+          success: false,
+          message: response.error || 'Failed to enhance job description. Please try again.',
+        });
+      }
+    } catch (error) {
+      console.error('Enhancement error:', error);
+      setEnhancementResult({
+        success: false,
+        message: 'Failed to enhance job description. Please try again.',
+      });
+    } finally {
+      setIsEnhancing(false);
     }
   };
 
@@ -435,6 +493,77 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
                     <div className="text-sm text-gray-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
                       {field.value}
                     </div>
+                  </div>
+                )}
+                
+                {/* Enhance Job Description Button */}
+                {field.value && field.value.trim().length >= 50 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEnhanceJobDescription}
+                      disabled={isEnhancing}
+                      className="flex items-center gap-2"
+                    >
+                      {isEnhancing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      {isEnhancing ? 'Enhancing...' : 'Enhance with AI'}
+                    </Button>
+                    <span className="text-xs text-gray-500">
+                      Organize and extract key information
+                    </span>
+                  </div>
+                )}
+
+                {/* Enhancement Result */}
+                {enhancementResult && (
+                  <div className={`p-3 rounded-md border ${
+                    enhancementResult.success 
+                      ? 'bg-green-50 border-green-200 text-green-800'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {enhancementResult.success ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <XCircle className="w-4 h-4" />
+                      )}
+                      <span className="text-sm font-medium">{enhancementResult.message}</span>
+                    </div>
+                    
+                    {enhancementResult.success && enhancementResult.data && (
+                      <div className="space-y-2 text-xs">
+                        {enhancementResult.data.key_requirements && (
+                          <div>
+                            <span className="font-medium">Key Requirements:</span>
+                            <div className="text-gray-600 mt-1 whitespace-pre-wrap">
+                              {enhancementResult.data.key_requirements}
+                            </div>
+                          </div>
+                        )}
+                        {enhancementResult.data.key_responsibilities && (
+                          <div>
+                            <span className="font-medium">Key Responsibilities:</span>
+                            <div className="text-gray-600 mt-1 whitespace-pre-wrap">
+                              {enhancementResult.data.key_responsibilities}
+                            </div>
+                          </div>
+                        )}
+                        {enhancementResult.data.benefits && (
+                          <div>
+                            <span className="font-medium">Benefits:</span>
+                            <div className="text-gray-600 mt-1 whitespace-pre-wrap">
+                              {enhancementResult.data.benefits}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
