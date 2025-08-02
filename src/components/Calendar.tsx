@@ -222,12 +222,38 @@ export const Calendar: React.FC<CalendarProps> = () => {
         return {
           ...prevMonth,
           weeks: prevMonth.weeks.map(week =>
-            week.map(day => ({
-              ...day,
-              tasks: day.tasks.some(t => t.id === task.id)
-                ? day.tasks.map(t => t.id === task.id ? task : t)
-                : [...day.tasks, task]
-            }))
+            week.map(day => {
+              const dayDate = day.date;
+              const taskDueDate = task.due_date;
+              const taskCreatedDate = task.created_at.split('T')[0];
+              
+              // Check if task should appear on this day
+              const shouldAppearOnDay = (
+                // Task is due on this day
+                taskDueDate === dayDate ||
+                // Task has no due date but was created on this day
+                (!taskDueDate && taskCreatedDate === dayDate)
+              );
+              
+              const existingTaskIndex = day.tasks.findIndex(t => t.id === task.id);
+              
+              if (existingTaskIndex >= 0) {
+                // Update existing task
+                return {
+                  ...day,
+                  tasks: day.tasks.map(t => t.id === task.id ? task : t)
+                };
+              } else if (shouldAppearOnDay) {
+                // Add task only to the correct day
+                return {
+                  ...day,
+                  tasks: [...day.tasks, task]
+                };
+              } else {
+                // Don't add task to this day
+                return day;
+              }
+            })
           )
         };
       });

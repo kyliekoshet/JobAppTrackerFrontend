@@ -196,6 +196,9 @@ const AuthenticatedApp: React.FC = () => {
           <Dashboard
             onAddNew={() => setCurrentView('add')}
             onViewAll={() => setCurrentView('list')}
+            onAddTask={() => setCurrentView('calendar')}
+            onAddEvent={() => setCurrentView('calendar')}
+            onViewCalendar={() => setCurrentView('calendar')}
             isLoading={isLoading}
           />
         )}
