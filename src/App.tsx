@@ -4,15 +4,15 @@ import { Dashboard } from './components/Dashboard';
 import { JobApplicationForm } from './components/JobApplicationForm';
 import { JobApplicationsList } from './components/JobApplicationsList';
 import { JobApplicationDetails } from './components/JobApplicationDetails';
-
+import { Calendar } from './components/Calendar';
 import { Login } from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { JobApplication } from './types/jobApplication';
 import { Button } from './components/ui/button';
-import { ArrowLeft, Home, Plus, List, Menu, LogOut, User } from 'lucide-react';
+import { ArrowLeft, Home, Plus, List, Menu, LogOut, User, Calendar as CalendarIcon } from 'lucide-react';
 import { useSyncManager } from './hooks/useSyncManager';
 
-type View = 'dashboard' | 'add' | 'list' | 'edit' | 'details';
+type View = 'dashboard' | 'add' | 'list' | 'edit' | 'details' | 'calendar';
 
 // Authenticated App Component
 const AuthenticatedApp: React.FC = () => {
@@ -26,13 +26,9 @@ const AuthenticatedApp: React.FC = () => {
   const {
     applications,
     isLoading,
-    error,
-    isOnline,
-    isSyncing,
     addApplication,
     updateApplication,
-    deleteApplication,
-    refreshApplications
+    deleteApplication
   } = useSyncManager();
 
   const handleAddApplication = async (applicationData: any) => {
@@ -181,6 +177,15 @@ const AuthenticatedApp: React.FC = () => {
               <List className="w-4 h-4" />
               All Applications
             </Button>
+            <Button
+              variant={currentView === 'calendar' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setCurrentView('calendar')}
+              className="flex items-center gap-2"
+            >
+              <CalendarIcon className="w-4 h-4" />
+              Calendar
+            </Button>
           </div>
         </div>
       </div>
@@ -224,6 +229,9 @@ const AuthenticatedApp: React.FC = () => {
             onEdit={() => handleEditApplication(selectedApplication)}
             onBack={handleBackToDashboard}
           />
+        )}
+        {currentView === 'calendar' && (
+          <Calendar />
         )}
       </main>
     </div>
