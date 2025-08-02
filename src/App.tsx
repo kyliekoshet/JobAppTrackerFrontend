@@ -7,7 +7,7 @@ import { JobApplicationDetails } from './components/JobApplicationDetails';
 import { SyncStatus } from './components/SyncStatus';
 import { JobApplication } from './types/jobApplication';
 import { Button } from './components/ui/button';
-import { ArrowLeft, Home, Plus, List } from 'lucide-react';
+import { ArrowLeft, Home, Plus, List, Menu } from 'lucide-react';
 import { useSyncManager } from './hooks/useSyncManager';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
@@ -17,6 +17,7 @@ function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   
   // Get applications from local storage
   const { applications, isLoading } = useLocalStorage();
@@ -169,9 +170,9 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Header */}
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="bg-white shadow-sm border-b sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
+          <div className="flex justify-between h-16 items-center">
             <div className="flex items-center">
               <Button
                 onClick={() => setCurrentView('dashboard')}
@@ -182,8 +183,8 @@ function App() {
                 Job Tracker
               </Button>
             </div>
-            
-            <div className="flex items-center gap-2">
+            {/* Desktop Nav */}
+            <div className="hidden md:flex items-center gap-2">
               <Button
                 onClick={() => setCurrentView('dashboard')}
                 variant={currentView === 'dashboard' ? 'default' : 'ghost'}
@@ -209,12 +210,56 @@ function App() {
                 Add New
               </Button>
             </div>
+            {/* Mobile Hamburger */}
+            <div className="md:hidden flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open menu"
+                onClick={() => setMobileNavOpen((open) => !open)}
+              >
+                <Menu className="w-6 h-6" />
+              </Button>
+            </div>
           </div>
         </div>
+        {/* Mobile Nav Drawer */}
+        {mobileNavOpen && (
+          <div className="md:hidden bg-white border-t shadow-lg absolute w-full left-0 top-16 z-40 animate-fade-in">
+            <div className="flex flex-col gap-2 p-4">
+              <Button
+                onClick={() => { setCurrentView('dashboard'); setMobileNavOpen(false); }}
+                variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                size="lg"
+                className="justify-start"
+              >
+                <Home className="w-5 h-5 mr-2" />
+                Dashboard
+              </Button>
+              <Button
+                onClick={() => { setCurrentView('list'); setMobileNavOpen(false); }}
+                variant={currentView === 'list' ? 'default' : 'ghost'}
+                size="lg"
+                className="justify-start"
+              >
+                <List className="w-5 h-5 mr-2" />
+                Applications
+              </Button>
+              <Button
+                onClick={() => { setCurrentView('add'); setMobileNavOpen(false); }}
+                variant={currentView === 'add' ? 'default' : 'ghost'}
+                size="lg"
+                className="justify-start"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Add New
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
-
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 md:py-8">
         {renderView()}
       </main>
     </div>
