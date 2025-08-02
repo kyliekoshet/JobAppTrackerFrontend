@@ -1,71 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
 import { JobApplication, JobApplicationCreate, JobApplicationUpdate } from '../types/jobApplication';
 import { jobApplicationsApi } from '../services/api';
-import { useLocalStorage } from './useLocalStorage';
-
-interface SyncStatus {
-  isOnline: boolean;
-  lastSync: Date | null;
-  pendingChanges: number;
-  isSyncing: boolean;
-  error: string | null;
-}
 
 interface UseSyncManagerReturn {
-  syncStatus: SyncStatus;
-  syncWithBackend: () => Promise<void>;
-  addApplicationWithSync: (application: JobApplicationCreate) => Promise<JobApplication | null>;
-  updateApplicationWithSync: (id: number, updates: JobApplicationUpdate) => Promise<boolean>;
-  deleteApplicationWithSync: (id: number) => Promise<boolean>;
-  forceSync: () => Promise<void>;
+  applications: JobApplication[];
+  isLoading: boolean;
+  error: string | null;
+  isOnline: boolean;
+  isSyncing: boolean;
+  addApplication: (application: JobApplicationCreate) => Promise<JobApplication>;
+  updateApplication: (id: number, updates: JobApplicationUpdate) => Promise<JobApplication>;
+  deleteApplication: (id: number) => Promise<void>;
+  refreshApplications: () => Promise<void>;
 }
 
-const PENDING_CHANGES_KEY = 'pendingChanges';
-const LAST_SYNC_KEY = 'lastSync';
-
 export const useSyncManager = (): UseSyncManagerReturn => {
-  const {
-    applications,
-    addApplication,
-    updateApplication,
-    deleteApplication,
-    syncWithBackend: syncLocalStorage
-  } = useLocalStorage();
-
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
-    isOnline: navigator.onLine,
-    lastSync: null,
-    pendingChanges: 0,
-    isSyncing: false,
-    error: null
-  });
-
-  // Load sync status from localStorage
-  useEffect(() => {
-    try {
-      const lastSync = localStorage.getItem(LAST_SYNC_KEY);
-      const pendingChanges = localStorage.getItem(PENDING_CHANGES_KEY);
-      
-      setSyncStatus(prev => ({
-        ...prev,
-        lastSync: lastSync ? new Date(lastSync) : null,
-        pendingChanges: pendingChanges ? parseInt(pendingChanges, 10) : 0
-      }));
-    } catch (err) {
-      console.error('Error loading sync status:', err);
-    }
-  }, []);
+  const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Monitor online/offline status
   useEffect(() => {
-    const handleOnline = () => {
-      setSyncStatus(prev => ({ ...prev, isOnline: true }));
-      // Auto-sync when coming back online - we'll call it manually
-    };
-
-    const handleOffline = () => {
-      setSyncStatus(prev => ({ ...prev, isOnline: false }));
-    };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -76,194 +35,114 @@ export const useSyncManager = (): UseSyncManagerReturn => {
     };
   }, []);
 
-  // Update pending changes count
-  const updatePendingChanges = useCallback((change: number) => {
-    setSyncStatus(prev => {
-      const newCount = Math.max(0, prev.pendingChanges + change);
-      localStorage.setItem(PENDING_CHANGES_KEY, newCount.toString());
-      return { ...prev, pendingChanges: newCount };
-    });
-  }, []);
-
-  // Update last sync time
-  const updateLastSync = useCallback(() => {
-    const now = new Date();
-    setSyncStatus(prev => ({ ...prev, lastSync: now }));
-    localStorage.setItem(LAST_SYNC_KEY, now.toISOString());
-  }, []);
-
-  // Main sync function
-  const syncWithBackend = useCallback(async () => {
-    if (!navigator.onLine || syncStatus.isSyncing) {
+  // Load applications from API
+  const refreshApplications = useCallback(async () => {
+    if (!isOnline) {
+      setError('No internet connection');
       return;
     }
 
-    setSyncStatus(prev => ({ ...prev, isSyncing: true, error: null }));
+    setIsSyncing(true);
+    setError(null);
 
     try {
-      // Fetch latest data from backend
-      const backendResponse = await jobApplicationsApi.getAll();
-      const backendApplications = backendResponse.applications;
-      
-      console.log('Backend applications:', backendApplications);
-      
-      // If we have backend data, use it directly (no merging needed for initial load)
-      if (backendApplications && backendApplications.length > 0) {
-        syncLocalStorage(backendApplications);
-        console.log('Synced applications to local storage');
-      }
-      
-      updateLastSync();
-      // Clear pending changes using functional update
-      setSyncStatus(prev => {
-        localStorage.setItem(PENDING_CHANGES_KEY, '0');
-        return { ...prev, pendingChanges: 0 };
-      });
-      
-      setSyncStatus(prev => ({ 
-        ...prev, 
-        isSyncing: false,
-        error: null 
-      }));
-    } catch (err) {
-      console.error('Sync failed:', err);
-      setSyncStatus(prev => ({ 
-        ...prev, 
-        isSyncing: false,
-        error: 'Failed to sync with backend' 
-      }));
+      const response = await jobApplicationsApi.getAll();
+      setApplications(response.applications || []);
+    } catch (err: any) {
+      console.error('Failed to load applications:', err);
+      setError('Failed to load applications from server');
+    } finally {
+      setIsSyncing(false);
+      setIsLoading(false);
     }
-  }, [syncLocalStorage, updateLastSync, updatePendingChanges]); // Remove syncStatus dependencies
+  }, [isOnline]);
 
-  // Add application with sync
-  const addApplicationWithSync = useCallback(async (applicationData: JobApplicationCreate): Promise<JobApplication | null> => {
+  // Load applications on mount and when coming online
+  useEffect(() => {
+    if (isOnline) {
+      refreshApplications();
+    } else {
+      setIsLoading(false);
+      setError('No internet connection');
+    }
+  }, [isOnline, refreshApplications]);
+
+  // Add new application
+  const addApplication = useCallback(async (applicationData: JobApplicationCreate): Promise<JobApplication> => {
+    if (!isOnline) {
+      throw new Error('No internet connection');
+    }
+
+    setIsSyncing(true);
+    setError(null);
+
     try {
-      if (navigator.onLine) {
-        // Try to save to backend first
-        const newApplication = await jobApplicationsApi.create(applicationData);
-        addApplication(newApplication);
-        updateLastSync();
-        return newApplication;
-      } else {
-        // Offline: save locally with temporary ID
-        const tempApplication: JobApplication = {
-          ...applicationData,
-          id: Date.now(), // Temporary ID
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        addApplication(tempApplication);
-        updatePendingChanges(1);
-        return tempApplication;
-      }
-    } catch (err) {
+      const newApplication = await jobApplicationsApi.create(applicationData);
+      setApplications(prev => [newApplication, ...prev]);
+      return newApplication;
+    } catch (err: any) {
       console.error('Failed to add application:', err);
-      // Fallback to local storage only
-      const tempApplication: JobApplication = {
-        ...applicationData,
-        id: Date.now(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      addApplication(tempApplication);
-      updatePendingChanges(1);
-      return tempApplication;
+      setError('Failed to add application');
+      throw err;
+    } finally {
+      setIsSyncing(false);
     }
-  }, [addApplication, updateLastSync, updatePendingChanges]);
+  }, [isOnline]);
 
-  // Update application with sync
-  const updateApplicationWithSync = useCallback(async (id: number, updates: JobApplicationUpdate): Promise<boolean> => {
-    console.log('updateApplicationWithSync called with:', { id, updates });
+  // Update application
+  const updateApplication = useCallback(async (id: number, updates: JobApplicationUpdate): Promise<JobApplication> => {
+    if (!isOnline) {
+      throw new Error('No internet connection');
+    }
+
+    setIsSyncing(true);
+    setError(null);
+
     try {
-      if (navigator.onLine) {
-        // Try to update backend first
-        console.log('Updating backend...');
-        await jobApplicationsApi.update(id, updates);
-        
-        // Fetch the complete updated application from backend
-        console.log('Fetching updated application...');
-        const updatedApplication = await jobApplicationsApi.getById(id);
-        console.log('Received updated application:', updatedApplication);
-        
-        // Update local state with the complete updated application
-        updateApplication(id, updatedApplication);
-        updateLastSync();
-        return true;
-      } else {
-        // Offline: update locally
-        updateApplication(id, updates);
-        updatePendingChanges(1);
-        return true;
-      }
-    } catch (err) {
+      const updatedApplication = await jobApplicationsApi.update(id, updates);
+      setApplications(prev => 
+        prev.map(app => app.id === id ? updatedApplication : app)
+      );
+      return updatedApplication;
+    } catch (err: any) {
       console.error('Failed to update application:', err);
-      // Fallback to local storage only
-      updateApplication(id, updates);
-      updatePendingChanges(1);
-      return false;
+      setError('Failed to update application');
+      throw err;
+    } finally {
+      setIsSyncing(false);
     }
-  }, [updateApplication, updateLastSync, updatePendingChanges]);
+  }, [isOnline]);
 
-  // Delete application with sync
-  const deleteApplicationWithSync = useCallback(async (id: number): Promise<boolean> => {
+  // Delete application
+  const deleteApplication = useCallback(async (id: number): Promise<void> => {
+    if (!isOnline) {
+      throw new Error('No internet connection');
+    }
+
+    setIsSyncing(true);
+    setError(null);
+
     try {
-      if (navigator.onLine) {
-        // Try to delete from backend first
-        await jobApplicationsApi.delete(id);
-        deleteApplication(id);
-        updateLastSync();
-        return true;
-      } else {
-        // Offline: delete locally
-        deleteApplication(id);
-        updatePendingChanges(1);
-        return true;
-      }
-    } catch (err) {
+      await jobApplicationsApi.delete(id);
+      setApplications(prev => prev.filter(app => app.id !== id));
+    } catch (err: any) {
       console.error('Failed to delete application:', err);
-      // Fallback to local storage only
-      deleteApplication(id);
-      updatePendingChanges(1);
-      return false;
+      setError('Failed to delete application');
+      throw err;
+    } finally {
+      setIsSyncing(false);
     }
-  }, [deleteApplication, updateLastSync, updatePendingChanges]);
-
-  // Force sync function
-  const forceSync = useCallback(async () => {
-    await syncWithBackend();
-  }, [syncWithBackend]);
+  }, [isOnline]);
 
   return {
-    syncStatus,
-    syncWithBackend,
-    addApplicationWithSync,
-    updateApplicationWithSync,
-    deleteApplicationWithSync,
-    forceSync
+    applications,
+    isLoading,
+    error,
+    isOnline,
+    isSyncing,
+    addApplication,
+    updateApplication,
+    deleteApplication,
+    refreshApplications
   };
-};
-
-// Helper function to merge local and backend applications
-function mergeApplications(local: JobApplication[], backend: JobApplication[]): JobApplication[] {
-  const merged = new Map<number, JobApplication>();
-  
-  // Add all backend applications (they take precedence)
-  backend.forEach(app => {
-    if (app.id !== undefined) {
-      merged.set(app.id, app);
-    }
-  });
-  
-  // Add local applications that don't exist in backend (pending changes)
-  local.forEach(app => {
-    if (app.id !== undefined && !merged.has(app.id)) {
-      merged.set(app.id, app);
-    }
-  });
-  
-  return Array.from(merged.values()).sort((a, b) => {
-    const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return bDate - aDate;
-  });
-} 
+}; 

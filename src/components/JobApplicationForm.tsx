@@ -105,7 +105,7 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     setScrapingResult(null);
 
     try {
-      const response = await jobScrapingApi.scrapeJob(url);
+      const response = await jobScrapingApi.scrapeJob({ url });
       
       if (response.success && response.data && response.data.success) {
         const scrapedData = response.data;

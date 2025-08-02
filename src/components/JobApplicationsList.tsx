@@ -33,11 +33,14 @@ export const JobApplicationsList: React.FC<JobApplicationsListProps> = ({
   const [sortBy, setSortBy] = useState('date_applied');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
   // Use prop applications if provided, otherwise use local state
   const displayApplications = propApplications.length > 0 ? propApplications : applications;
   const displayLoading = propIsLoading || loading;
+  
+  // Calculate total pages based on filtered applications
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(displayApplications.length / itemsPerPage);
   
   // Debug logging
   console.log('JobApplicationsList - propApplications:', propApplications);

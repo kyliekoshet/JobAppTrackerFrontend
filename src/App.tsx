@@ -1,60 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './index.css';
 import { Dashboard } from './components/Dashboard';
 import { JobApplicationForm } from './components/JobApplicationForm';
 import { JobApplicationsList } from './components/JobApplicationsList';
 import { JobApplicationDetails } from './components/JobApplicationDetails';
 import { SyncStatus } from './components/SyncStatus';
+import { Login } from './components/Login';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { JobApplication } from './types/jobApplication';
 import { Button } from './components/ui/button';
-import { ArrowLeft, Home, Plus, List, Menu } from 'lucide-react';
+import { ArrowLeft, Home, Plus, List, Menu, LogOut, User } from 'lucide-react';
 import { useSyncManager } from './hooks/useSyncManager';
-import { useLocalStorage } from './hooks/useLocalStorage';
 
 type View = 'dashboard' | 'add' | 'list' | 'edit' | 'details';
 
-function App() {
+// Authenticated App Component
+const AuthenticatedApp: React.FC = () => {
+  const { user, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  
-  // Get applications from local storage
-  const { applications, isLoading } = useLocalStorage();
 
-  // Initialize sync manager
+  // Use cloud-only sync manager
   const {
-    syncStatus,
-    syncWithBackend,
-    addApplicationWithSync,
-    updateApplicationWithSync,
-    deleteApplicationWithSync,
-    forceSync
+    applications,
+    isLoading,
+    error,
+    isOnline,
+    isSyncing,
+    addApplication,
+    updateApplication,
+    deleteApplication,
+    refreshApplications
   } = useSyncManager();
 
-  // Auto-sync on mount only
-  useEffect(() => {
-    // Initial sync to load data from backend
-    const initialSync = async () => {
-      try {
-        await syncWithBackend();
-      } catch (error) {
-        console.error('Initial sync failed:', error);
-      }
-    };
-    
-    initialSync();
-  }, []); // Remove syncWithBackend from dependencies
-
-  const handleAddNew = () => {
-    setCurrentView('add');
+  const handleAddApplication = async (applicationData: any) => {
+    try {
+      const newApplication = await addApplication({
+        ...applicationData,
+        user_id: user?.id // Add user ID to the application
+      });
+      setCurrentView('dashboard');
+      return newApplication;
+    } catch (error) {
+      console.error('Failed to add application:', error);
+      throw error;
+    }
   };
 
-  const handleViewAll = () => {
-    setCurrentView('list');
+  const handleUpdateApplication = async (id: number, applicationData: any) => {
+    try {
+      await updateApplication(id, applicationData);
+      setEditingApplication(null);
+      setCurrentView('dashboard');
+    } catch (error) {
+      console.error('Failed to update application:', error);
+      throw error;
+    }
   };
 
-  const handleEdit = (application: JobApplication) => {
+  const handleDeleteApplication = async (id: number): Promise<boolean> => {
+    try {
+      await deleteApplication(id);
+      setCurrentView('dashboard');
+      return true;
+    } catch (error) {
+      console.error('Failed to delete application:', error);
+      throw error;
+    }
+  };
+
+  const handleEditApplication = (application: JobApplication) => {
     setEditingApplication(application);
     setCurrentView('edit');
   };
@@ -64,206 +81,201 @@ function App() {
     setCurrentView('details');
   };
 
-  const handleBack = () => {
+  const handleBackToDashboard = () => {
     setCurrentView('dashboard');
     setEditingApplication(null);
     setSelectedApplication(null);
   };
 
-  const handleSuccess = () => {
-    setCurrentView('dashboard');
-    setEditingApplication(null);
-    setSelectedApplication(null);
-  };
-
-  const renderView = () => {
+  const getPageTitle = () => {
     switch (currentView) {
-      case 'dashboard':
-        return (
-          <Dashboard
-            onAddNew={handleAddNew}
-            onViewAll={handleViewAll}
-            syncStatus={syncStatus}
-            onForceSync={forceSync}
-          />
-        );
-      case 'add':
-        return (
-          <div>
-            <div className="flex items-center gap-4 mb-6">
-              <Button onClick={handleBack} variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </div>
-            <JobApplicationForm
-              onSuccess={handleSuccess}
-              onCancel={handleBack}
-              onAddApplication={addApplicationWithSync}
-            />
-          </div>
-        );
-      case 'list':
-        return (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <Button onClick={handleBack} variant="outline" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-                <h1 className="text-2xl font-bold text-gray-900">All Applications</h1>
-              </div>
-              <Button onClick={handleAddNew} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add New
-              </Button>
-            </div>
-            <JobApplicationsList
-              onEdit={handleEdit}
-              onViewDetails={handleViewDetails}
-              onRefresh={() => setCurrentView('dashboard')}
-              applications={applications}
-              onDeleteApplication={deleteApplicationWithSync}
-              isLoading={isLoading}
-            />
-          </div>
-        );
-      case 'edit':
-        return (
-          <div>
-            <div className="flex items-center gap-4 mb-6">
-              <Button onClick={handleBack} variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to List
-              </Button>
-            </div>
-            <JobApplicationForm
-              onSuccess={handleSuccess}
-              onCancel={handleBack}
-              onAddApplication={addApplicationWithSync}
-              onUpdateApplication={updateApplicationWithSync}
-              editingApplication={editingApplication}
-            />
-          </div>
-        );
-      case 'details':
-        return selectedApplication ? (
-          <JobApplicationDetails
-            application={selectedApplication}
-            onBack={handleBack}
-            onEdit={handleEdit}
-          />
-        ) : (
-          <div className="text-center p-8">
-            <p className="text-gray-500">No application selected</p>
-            <Button onClick={handleBack} className="mt-4">
-              Back to Dashboard
-            </Button>
-          </div>
-        );
-      default:
-        return <Dashboard onAddNew={handleAddNew} onViewAll={handleViewAll} />;
+      case 'add': return 'Add New Application';
+      case 'edit': return 'Edit Application';
+      case 'list': return 'All Applications';
+      case 'details': return 'Application Details';
+      default: return 'Dashboard';
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Header */}
-      <nav className="bg-white shadow-sm border-b sticky top-0 z-30">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
-              <Button
-                onClick={() => setCurrentView('dashboard')}
-                variant="ghost"
-                className="flex items-center gap-2 text-lg font-semibold text-gray-900"
-              >
-                <Home className="w-5 h-5" />
-                Job Tracker
-              </Button>
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              {currentView !== 'dashboard' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBackToDashboard}
+                  className="flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </Button>
+              )}
+              <h1 className="text-xl font-semibold text-gray-900">
+                {getPageTitle()}
+              </h1>
             </div>
-            {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-2">
-              <Button
-                onClick={() => setCurrentView('dashboard')}
-                variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                size="sm"
-              >
-                <Home className="w-4 h-4 mr-2" />
-                Dashboard
-              </Button>
-              <Button
-                onClick={() => setCurrentView('list')}
-                variant={currentView === 'list' ? 'default' : 'ghost'}
-                size="sm"
-              >
-                <List className="w-4 h-4 mr-2" />
-                Applications
-              </Button>
-              <Button
-                onClick={() => setCurrentView('add')}
-                variant={currentView === 'add' ? 'default' : 'ghost'}
-                size="sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add New
-              </Button>
-            </div>
-            {/* Mobile Hamburger */}
-            <div className="md:hidden flex items-center">
+            
+            <div className="flex items-center space-x-4">
+              <SyncStatus 
+                isOnline={isOnline}
+                lastSync={null} // No longer tracking last sync from local storage
+                pendingChanges={0} // No longer tracking pending changes from local storage
+                isSyncing={isSyncing}
+                error={error}
+                onForceSync={refreshApplications} // Use refreshApplications for force sync
+              />
+              
+              {/* User Profile */}
+              <div className="flex items-center space-x-2">
+                <User className="w-5 h-5 text-gray-500" />
+                <span className="text-sm text-gray-700">{user?.email}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="flex items-center gap-2 text-gray-500 hover:text-red-600"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </Button>
+              </div>
+
+              {/* Mobile menu button */}
               <Button
                 variant="ghost"
-                size="icon"
-                aria-label="Open menu"
-                onClick={() => setMobileNavOpen((open) => !open)}
+                size="sm"
+                className="md:hidden"
+                onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
-                <Menu className="w-6 h-6" />
+                <Menu className="w-5 h-5" />
               </Button>
             </div>
           </div>
         </div>
-        {/* Mobile Nav Drawer */}
-        {mobileNavOpen && (
-          <div className="md:hidden bg-white border-t shadow-lg absolute w-full left-0 top-16 z-40 animate-fade-in">
-            <div className="flex flex-col gap-2 p-4">
-              <Button
-                onClick={() => { setCurrentView('dashboard'); setMobileNavOpen(false); }}
-                variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                size="lg"
-                className="justify-start"
-              >
-                <Home className="w-5 h-5 mr-2" />
-                Dashboard
-              </Button>
-              <Button
-                onClick={() => { setCurrentView('list'); setMobileNavOpen(false); }}
-                variant={currentView === 'list' ? 'default' : 'ghost'}
-                size="lg"
-                className="justify-start"
-              >
-                <List className="w-5 h-5 mr-2" />
-                Applications
-              </Button>
-              <Button
-                onClick={() => { setCurrentView('add'); setMobileNavOpen(false); }}
-                variant={currentView === 'add' ? 'default' : 'ghost'}
-                size="lg"
-                className="justify-start"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Add New
-              </Button>
-            </div>
+      </div>
+
+      {/* Navigation */}
+      <div className={`bg-white border-b ${mobileNavOpen ? 'block' : 'hidden'} md:block`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8 py-4">
+            <Button
+              variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setCurrentView('dashboard')}
+              className="flex items-center gap-2"
+            >
+              <Home className="w-4 h-4" />
+              Dashboard
+            </Button>
+            <Button
+              variant={currentView === 'add' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setCurrentView('add')}
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Application
+            </Button>
+            <Button
+              variant={currentView === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setCurrentView('list')}
+              className="flex items-center gap-2"
+            >
+              <List className="w-4 h-4" />
+              All Applications
+            </Button>
           </div>
-        )}
-      </nav>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 md:py-8">
-        {renderView()}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {currentView === 'dashboard' && (
+          <Dashboard
+            onAddNew={() => setCurrentView('add')}
+            onViewAll={() => setCurrentView('list')}
+            syncStatus={{ 
+              isOnline, 
+              lastSync: null, 
+              pendingChanges: 0, 
+              isSyncing, 
+              error 
+            }}
+            onForceSync={refreshApplications}
+            isLoading={isLoading}
+          />
+        )}
+        {currentView === 'add' && (
+          <JobApplicationForm
+            onSuccess={handleBackToDashboard}
+            onCancel={handleBackToDashboard}
+            onAddApplication={handleAddApplication}
+          />
+        )}
+        {currentView === 'edit' && editingApplication && (
+          <JobApplicationForm
+            onSuccess={handleBackToDashboard}
+            onCancel={handleBackToDashboard}
+            onUpdateApplication={handleUpdateApplication}
+            editingApplication={editingApplication}
+          />
+        )}
+        {currentView === 'list' && (
+          <JobApplicationsList
+            applications={applications}
+            onEdit={handleEditApplication}
+            onViewDetails={handleViewDetails}
+            onDeleteApplication={handleDeleteApplication}
+            isLoading={isLoading}
+          />
+        )}
+        {currentView === 'details' && selectedApplication && (
+          <JobApplicationDetails
+            application={selectedApplication}
+            onEdit={() => handleEditApplication(selectedApplication)}
+            onBack={handleBackToDashboard}
+          />
+        )}
       </main>
     </div>
   );
+};
+
+// Main App Component with Authentication
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
+
+// App Content Component that handles auth state
+const AppContent: React.FC = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <AuthenticatedApp />;
+};
 
 export default App; 

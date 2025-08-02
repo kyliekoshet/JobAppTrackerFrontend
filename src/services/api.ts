@@ -1,106 +1,103 @@
 import axios from 'axios';
-import {
-  JobApplication,
-  JobApplicationCreate,
+import { 
+  JobApplication, 
+  JobApplicationCreate, 
   JobApplicationUpdate,
-  JobApplicationList,
-  JobApplicationWithFollowUps,
-  FollowUp,
-  FollowUpCreate,
-  FollowUpUpdate,
   ScrapingRequest,
   ScrapingResponse,
-  SummaryStats,
   JobDescriptionEnhanceRequest,
   JobDescriptionEnhanceResponse
 } from '../types/jobApplication';
+import { supabase } from '../lib/supabase';
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-// Create axios instance with default config
+// Create axios instance with interceptors for auth
 const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
+
+// Add auth interceptor
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user?.id) {
+    config.headers.Authorization = `Bearer ${session.user.id}`;
+  }
+  return config;
+});
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Handle unauthorized - could redirect to login
+      console.error('Unauthorized access - user needs to login');
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Job Applications API
 export const jobApplicationsApi = {
-  // Get all job applications with pagination and filters
-  getAll: async (params?: {
-    page?: number;
-    size?: number;
-    status?: string;
-    company?: string;
-    sort_by?: string;
-    sort_order?: 'asc' | 'desc';
-  }): Promise<JobApplicationList> => {
-    const response = await api.get('/job-applications', { params });
+  // Get all job applications
+  getAll: async (): Promise<{ applications: JobApplication[] }> => {
+    const response = await api.get('/job-applications');
     return response.data;
   },
 
-  // Get a single job application by ID
+  // Get job application by ID
   getById: async (id: number): Promise<JobApplication> => {
     const response = await api.get(`/job-applications/${id}`);
     return response.data;
   },
 
-  // Create a new job application
-  create: async (data: JobApplicationCreate): Promise<JobApplication> => {
-    const response = await api.post('/job-applications', data);
+  // Create new job application
+  create: async (application: JobApplicationCreate): Promise<JobApplication> => {
+    const response = await api.post('/job-applications', application);
     return response.data;
   },
 
-  // Update a job application
-  update: async (id: number, data: JobApplicationUpdate): Promise<JobApplication> => {
-    console.log('API update request:', { id, data });
-    const response = await api.put(`/job-applications/${id}`, data);
-    console.log('API update response:', response.data);
+  // Update job application
+  update: async (id: number, application: JobApplicationUpdate): Promise<JobApplication> => {
+    const response = await api.put(`/job-applications/${id}`, application);
     return response.data;
   },
 
-  // Delete a job application
+  // Delete job application
   delete: async (id: number): Promise<void> => {
     await api.delete(`/job-applications/${id}`);
-  },
-
-  // Get summary statistics
-  getStats: async (): Promise<SummaryStats> => {
-    const response = await api.get('/job-applications/stats');
-    return response.data;
   },
 };
 
 // Job Scraping API
 export const jobScrapingApi = {
-  // Scrape job details from URL
-  scrapeJob: async (url: string): Promise<ScrapingResponse> => {
+  scrapeJob: async (request: ScrapingRequest): Promise<ScrapingResponse> => {
     try {
-      const response = await api.post('/scrape-job', { url } as ScrapingRequest);
+      const response = await api.post('/job-applications/scrape-job', request);
       return response.data;
     } catch (error) {
-      // Handle network errors or server errors
       if (axios.isAxiosError(error)) {
+        // Handle axios errors properly
         return {
           success: false,
+          data: null,
           error: error.response?.data?.detail || error.message || 'Network error occurred',
         };
       }
       return {
         success: false,
+        data: null,
         error: 'An unexpected error occurred',
       };
     }
   },
 
-  // Enhance job description with AI
   enhanceJobDescription: async (request: JobDescriptionEnhanceRequest): Promise<JobDescriptionEnhanceResponse> => {
     try {
-      const response = await api.post('/enhance-job-description', request);
+      const response = await api.post('/job-applications/enhance-job-description', request);
       return response.data;
     } catch (error) {
-      // Handle network errors or server errors
       if (axios.isAxiosError(error)) {
         return {
           success: false,
@@ -118,19 +115,19 @@ export const jobScrapingApi = {
 // Follow-ups API
 export const followUpsApi = {
   // Get all follow-ups for a job application
-  getByApplication: async (applicationId: number): Promise<FollowUp[]> => {
+  getByApplication: async (applicationId: number): Promise<any[]> => { // Changed from FollowUp[] to any[] as FollowUp is removed
     const response = await api.get(`/job-applications/${applicationId}/follow-ups`);
     return response.data;
   },
 
   // Create a new follow-up
-  create: async (applicationId: number, data: FollowUpCreate): Promise<FollowUp> => {
+  create: async (applicationId: number, data: any): Promise<any> => { // Changed from FollowUpCreate to any
     const response = await api.post(`/job-applications/${applicationId}/follow-ups`, data);
     return response.data;
   },
 
   // Update a follow-up
-  update: async (followUpId: number, data: FollowUpUpdate): Promise<FollowUp> => {
+  update: async (followUpId: number, data: any): Promise<any> => { // Changed from FollowUpUpdate to any
     const response = await api.put(`/follow-ups/${followUpId}`, data);
     return response.data;
   },
@@ -141,7 +138,7 @@ export const followUpsApi = {
   },
 
   // Get a specific follow-up
-  getById: async (followUpId: number): Promise<FollowUp> => {
+  getById: async (followUpId: number): Promise<any> => { // Changed from FollowUp to any
     const response = await api.get(`/follow-ups/${followUpId}`);
     return response.data;
   },
@@ -151,7 +148,7 @@ export const followUpsApi = {
     status?: string;
     follow_up_type?: string;
     application_id?: number;
-  }): Promise<FollowUp[]> => {
+  }): Promise<any[]> => { // Changed from FollowUp[] to any[]
     const response = await api.get('/follow-ups', { params });
     return response.data;
   },
@@ -160,7 +157,7 @@ export const followUpsApi = {
 // Job application with follow-ups API
 export const jobApplicationWithFollowUpsApi = {
   // Get a job application with all its follow-ups
-  getById: async (applicationId: number): Promise<JobApplicationWithFollowUps> => {
+  getById: async (applicationId: number): Promise<any> => { // Changed from JobApplicationWithFollowUps to any
     const response = await api.get(`/job-applications/${applicationId}/with-follow-ups`);
     return response.data;
   },
