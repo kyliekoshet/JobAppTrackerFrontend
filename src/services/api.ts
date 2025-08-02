@@ -74,8 +74,22 @@ export const jobApplicationsApi = {
 export const jobScrapingApi = {
   // Scrape job details from URL
   scrapeJob: async (url: string): Promise<ScrapingResponse> => {
-    const response = await api.post('/scrape-job', { url } as ScrapingRequest);
-    return response.data;
+    try {
+      const response = await api.post('/scrape-job', { url } as ScrapingRequest);
+      return response.data;
+    } catch (error) {
+      // Handle network errors or server errors
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.detail || error.message || 'Network error occurred',
+        };
+      }
+      return {
+        success: false,
+        error: 'An unexpected error occurred',
+      };
+    }
   },
 };
 

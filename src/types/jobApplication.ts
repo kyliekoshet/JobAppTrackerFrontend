@@ -77,8 +77,8 @@ export interface ScrapingRequest {
 
 export interface ScrapingResponse {
   success: boolean;
-  data: ScrapedJobData;
-  error: string | null;
+  data?: ScrapedJobData | null;
+  error?: string | null;
 }
 
 export interface JobApplicationList {

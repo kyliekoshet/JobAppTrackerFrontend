@@ -101,7 +101,7 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
     try {
       const response = await jobScrapingApi.scrapeJob(url);
       
-      if (response.success && response.data.success) {
+      if (response.success && response.data && response.data.success) {
         const scrapedData = response.data;
         
         // Populate form with scraped data
@@ -117,9 +117,11 @@ export const JobApplicationForm: React.FC<JobApplicationFormProps> = ({
           data: scrapedData,
         });
       } else {
+        // Better error handling
+        const errorMessage = response.data?.error || response.error || 'Failed to scrape job details. Please fill in manually.';
         setScrapingResult({
           success: false,
-          message: response.data.error || 'Failed to scrape job details. Please fill in manually.',
+          message: errorMessage,
         });
       }
     } catch (error) {
