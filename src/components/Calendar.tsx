@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { CalendarView, CalendarMonthView, CalendarWeekView, CalendarDayView, Task, CalendarEvent, TaskSummary } from '../types/calendar';
 import { calendarEventsApi, tasksApi, dateUtils } from '../services/calendarApi';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, CheckCircle, AlertCircle, Target, Briefcase } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, CheckCircle, AlertCircle, Target, Briefcase, List, Eye, EyeOff } from 'lucide-react';
 import { TaskForm } from './TaskForm';
 import { EventForm } from './EventForm';
 
@@ -17,6 +17,13 @@ export const Calendar: React.FC<CalendarProps> = () => {
   const [taskSummary, setTaskSummary] = useState<TaskSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Task list state
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [showTaskList, setShowTaskList] = useState(true);
+  const [taskFilter, setTaskFilter] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
+  const [taskSort, setTaskSort] = useState<'date' | 'priority' | 'status' | 'title'>('date');
+  const [showCompleted, setShowCompleted] = useState(false);
   
   // Form states
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -50,9 +57,13 @@ export const Calendar: React.FC<CalendarProps> = () => {
         setDayView(data);
       }
       
-      // Load task summary
-      const summary = await tasksApi.getSummary();
+      // Load task summary and all tasks
+      const [summary, tasks] = await Promise.all([
+        tasksApi.getSummary(),
+        tasksApi.getAll()
+      ]);
       setTaskSummary(summary);
+      setAllTasks(tasks);
     } catch (err) {
       setError('Failed to load calendar data');
       console.error('Calendar loading error:', err);
@@ -119,12 +130,248 @@ export const Calendar: React.FC<CalendarProps> = () => {
     setShowTaskForm(true);
   };
 
+  const handleQuickCompleteTask = async (task: Task) => {
+    try {
+      // Use the same optimistic update approach
+      const updatedTask: Task = {
+        ...task,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        completed_count: task.target_count || 1
+      };
+
+      // Update local state immediately
+      setAllTasks(prevTasks => 
+        prevTasks.map(t => t.id === task.id ? updatedTask : t)
+      );
+
+      if (monthView) {
+        setMonthView(prevMonth => {
+          if (!prevMonth) return prevMonth;
+          return {
+            ...prevMonth,
+            weeks: prevMonth.weeks.map(week =>
+              week.map(day => ({
+                ...day,
+                tasks: day.tasks.map(t => t.id === task.id ? updatedTask : t)
+              }))
+            )
+          };
+        });
+      }
+
+      // API call
+      const updateData = {
+        status: 'completed' as const,
+        completed_at: new Date().toISOString(),
+        completed_count: task.target_count || 1
+      };
+      
+      await tasksApi.update(task.id, updateData);
+      
+      // Only refresh task summary
+      const summary = await tasksApi.getSummary();
+      setTaskSummary(summary);
+      
+    } catch (error) {
+      console.error('Failed to complete task:', error);
+      // Revert optimistic update on error
+      setAllTasks(prevTasks => 
+        prevTasks.map(t => t.id === task.id ? task : t)
+      );
+    }
+  };
+
   const handleEventSaved = (event: CalendarEvent) => {
-    loadCalendarData(); // Refresh calendar data
+    // Update calendar view with the saved event
+    if (monthView) {
+      setMonthView(prevMonth => {
+        if (!prevMonth) return prevMonth;
+        return {
+          ...prevMonth,
+          weeks: prevMonth.weeks.map(week =>
+            week.map(day => ({
+              ...day,
+              events: day.events.some(e => e.id === event.id)
+                ? day.events.map(e => e.id === event.id ? event : e)
+                : [...day.events, event]
+            }))
+          )
+        };
+      });
+    }
   };
 
   const handleTaskSaved = (task: Task) => {
-    loadCalendarData(); // Refresh calendar data
+    // Update local state with the saved task
+    setAllTasks(prevTasks => {
+      const existingIndex = prevTasks.findIndex(t => t.id === task.id);
+      if (existingIndex >= 0) {
+        // Update existing task
+        return prevTasks.map(t => t.id === task.id ? task : t);
+      } else {
+        // Add new task
+        return [...prevTasks, task];
+      }
+    });
+
+    // Update calendar view if needed
+    if (monthView) {
+      setMonthView(prevMonth => {
+        if (!prevMonth) return prevMonth;
+        return {
+          ...prevMonth,
+          weeks: prevMonth.weeks.map(week =>
+            week.map(day => ({
+              ...day,
+              tasks: day.tasks.some(t => t.id === task.id)
+                ? day.tasks.map(t => t.id === task.id ? task : t)
+                : [...day.tasks, task]
+            }))
+          )
+        };
+      });
+    }
+
+    // Only refresh task summary
+    tasksApi.getSummary().then(summary => setTaskSummary(summary));
+  };
+
+  const handleTaskCompletionToggle = (updatedTask: Task) => {
+    // Update local state with the updated task from the form
+    setAllTasks(prevTasks => 
+      prevTasks.map(t => t.id === updatedTask.id ? updatedTask : t)
+    );
+
+    if (monthView) {
+      setMonthView(prevMonth => {
+        if (!prevMonth) return prevMonth;
+        return {
+          ...prevMonth,
+          weeks: prevMonth.weeks.map(week =>
+            week.map(day => ({
+              ...day,
+              tasks: day.tasks.map(t => t.id === updatedTask.id ? updatedTask : t)
+            }))
+          )
+        };
+      });
+    }
+
+    // Only refresh task summary
+    tasksApi.getSummary().then(summary => setTaskSummary(summary));
+  };
+
+  // Quick toggle task completion from task list
+  const handleQuickToggleTask = async (task: Task) => {
+    try {
+      // Optimistically update the UI first
+      const newStatus: 'pending' | 'completed' = task.status === 'completed' ? 'pending' : 'completed';
+      const updatedTask: Task = {
+        ...task,
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : undefined,
+        completed_count: newStatus === 'completed' ? (task.target_count || 1) : 0
+      };
+
+      // Update local state immediately (optimistic update)
+      setAllTasks(prevTasks => 
+        prevTasks.map(t => t.id === task.id ? updatedTask : t)
+      );
+
+      // Update the calendar data if the task appears there too
+      if (monthView) {
+        setMonthView(prevMonth => {
+          if (!prevMonth) return prevMonth;
+          return {
+            ...prevMonth,
+            weeks: prevMonth.weeks.map(week =>
+              week.map(day => ({
+                ...day,
+                tasks: day.tasks.map(t => t.id === task.id ? updatedTask : t)
+              }))
+            )
+          };
+        });
+      }
+
+      // Then make the API call
+      const updateData = {
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : undefined,
+        completed_count: newStatus === 'completed' ? (task.target_count || 1) : 0
+      };
+      
+      await tasksApi.update(task.id, updateData);
+      
+      // Only refresh task summary stats, not everything
+      const summary = await tasksApi.getSummary();
+      setTaskSummary(summary);
+      
+    } catch (error) {
+      console.error('Failed to toggle task:', error);
+      // Revert the optimistic update on error
+      setAllTasks(prevTasks => 
+        prevTasks.map(t => t.id === task.id ? task : t)
+      );
+    }
+  };
+
+  // Filter and sort tasks
+  const getFilteredAndSortedTasks = () => {
+    let filteredTasks = allTasks;
+
+    // Apply priority filter
+    if (taskFilter !== 'all') {
+      filteredTasks = allTasks.filter(task => task.priority === taskFilter);
+    }
+
+    // Hide completed tasks if showCompleted is false
+    if (!showCompleted) {
+      filteredTasks = filteredTasks.filter(task => task.status !== 'completed');
+    }
+
+    // Apply sorting
+    filteredTasks.sort((a, b) => {
+      switch (taskSort) {
+        case 'date':
+          const dateA = a.due_date ? new Date(a.due_date) : new Date(a.created_at);
+          const dateB = b.due_date ? new Date(b.due_date) : new Date(b.created_at);
+          return dateA.getTime() - dateB.getTime();
+        case 'priority':
+          const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+          return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
+        case 'status':
+          return a.status.localeCompare(b.status);
+        case 'title':
+          return a.title.localeCompare(b.title);
+        default:
+          return 0;
+      }
+    });
+
+    return filteredTasks;
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'bg-red-100 border-red-300 text-red-800';
+      case 'high': return 'bg-orange-100 border-orange-300 text-orange-800';
+      case 'medium': return 'bg-blue-100 border-blue-300 text-blue-800';
+      case 'low': return 'bg-gray-100 border-gray-300 text-gray-800';
+      default: return 'bg-gray-100 border-gray-300 text-gray-800';
+    }
+  };
+
+  const getTaskTypeIcon = (taskType: string) => {
+    switch (taskType) {
+      case 'job_application': return <Briefcase className="w-4 h-4" />;
+      case 'interview_prep': return <Target className="w-4 h-4" />;
+      case 'networking': return <CheckCircle className="w-4 h-4" />;
+      case 'skill_building': return <AlertCircle className="w-4 h-4" />;
+      case 'daily_goal': return <Target className="w-4 h-4" />;
+      default: return <Clock className="w-4 h-4" />;
+    }
   };
 
   const closeAllForms = () => {
@@ -148,17 +395,6 @@ export const Calendar: React.FC<CalendarProps> = () => {
     }
   };
 
-  // Priority colors
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'text-red-600 bg-red-50 border-red-200';
-      case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'low': return 'text-green-600 bg-green-50 border-green-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
-
   // Event type colors
   const getEventTypeColor = (eventType: string) => {
     switch (eventType) {
@@ -167,16 +403,6 @@ export const Calendar: React.FC<CalendarProps> = () => {
       case 'deadline': return 'text-red-600 bg-red-50 border-red-200';
       case 'follow_up': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
-
-  // Task type icons
-  const getTaskTypeIcon = (taskType: string) => {
-    switch (taskType) {
-      case 'job_application': return <Briefcase className="w-4 h-4" />;
-      case 'interview_prep': return <Target className="w-4 h-4" />;
-      case 'daily_goal': return <CheckCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
     }
   };
 
@@ -407,32 +633,62 @@ export const Calendar: React.FC<CalendarProps> = () => {
                 dayView.tasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 rounded-lg cursor-pointer ${getPriorityColor(task.priority)}`}
+                    className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
+                      task.status === 'completed' 
+                        ? 'bg-green-50 border-2 border-green-200 opacity-75' 
+                        : getPriorityColor(task.priority)
+                    }`}
                     onClick={() => handleEditTask(task)}
                   >
                     <div className="flex items-center gap-2">
-                      {getTaskTypeIcon(task.task_type)}
-                      <span className="font-medium">{task.title}</span>
-                      <span className={`text-xs px-2 py-1 rounded ${
+                      {task.status === 'completed' ? (
+                        <span className="text-green-600 text-lg">✅</span>
+                      ) : (
+                        getTaskTypeIcon(task.task_type)
+                      )}
+                      <span className={`font-medium ${
+                        task.status === 'completed' ? 'line-through text-gray-600' : ''
+                      }`}>
+                        {task.title}
+                      </span>
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${
                         task.status === 'completed' ? 'bg-green-100 text-green-700' :
                         task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                        task.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {task.status}
+                        {task.status === 'completed' ? '✅ Completed' : 
+                         task.status === 'in_progress' ? '🔄 In Progress' :
+                         task.status === 'cancelled' ? '❌ Cancelled' :
+                         '⏳ Pending'}
                       </span>
                     </div>
                     {task.description && (
                       <div className="text-sm mt-1">{task.description}</div>
                     )}
-                    <div className="text-sm mt-2 flex items-center gap-4">
-                      {task.due_time && (
-                        <span>⏰ {task.due_time}</span>
-                      )}
-                      {task.estimated_duration && (
-                        <span>⏱️ {task.estimated_duration}min</span>
-                      )}
-                      {task.target_count && (
-                        <span>🎯 {task.completed_count}/{task.target_count}</span>
+                    <div className="text-sm mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {task.due_time && (
+                          <span>⏰ {task.due_time}</span>
+                        )}
+                        {task.estimated_duration && (
+                          <span>⏱️ {task.estimated_duration}min</span>
+                        )}
+                        {task.target_count && (
+                          <span>🎯 {task.completed_count}/{task.target_count}</span>
+                        )}
+                      </div>
+                      {task.status !== 'completed' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickCompleteTask(task);
+                          }}
+                          className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                          title="Mark as completed"
+                        >
+                          ✓ Complete
+                        </button>
                       )}
                     </div>
                   </div>
@@ -479,6 +735,14 @@ export const Calendar: React.FC<CalendarProps> = () => {
             <Plus className="w-4 h-4 mr-2" />
             Add Task
           </Button>
+          <Button 
+            onClick={() => setShowTaskList(!showTaskList)} 
+            size="sm" 
+            variant={showTaskList ? "default" : "outline"}
+          >
+            <List className="w-4 h-4 mr-2" />
+            {showTaskList ? 'Hide Tasks' : 'Show Tasks'}
+          </Button>
         </div>
       </div>
 
@@ -513,12 +777,192 @@ export const Calendar: React.FC<CalendarProps> = () => {
         </div>
       </div>
 
-      {/* Calendar Content */}
-      <div>
-        {currentView === 'month' && renderMonthView()}
-        {currentView === 'week' && renderWeekView()}
-        {currentView === 'day' && renderDayView()}
+      {/* Task List Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        {/* Calendar Content */}
+        <div className={showTaskList ? "lg:col-span-2" : "lg:col-span-3"}>
+          {currentView === 'month' && renderMonthView()}
+          {currentView === 'week' && renderWeekView()}
+          {currentView === 'day' && renderDayView()}
+        </div>
+
+        {/* Task List */}
+        {showTaskList && (
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-sm border">
+              {/* Task List Header */}
+              <div className="p-4 border-b bg-gray-50 rounded-t-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <List className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Tasks</h3>
+                  </div>
+                  <Button
+                    onClick={() => setShowTaskList(false)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <EyeOff className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {/* Task Controls */}
+                <div className="flex flex-col gap-3">
+                  {/* Filter and Sort Row */}
+                  <div className="flex gap-2">
+                    <select
+                      value={taskFilter}
+                      onChange={(e) => setTaskFilter(e.target.value as any)}
+                      className="text-sm border rounded px-2 py-1 flex-1"
+                    >
+                      <option value="all">All Priorities</option>
+                      <option value="urgent">🔴 Urgent</option>
+                      <option value="high">🟠 High</option>
+                      <option value="medium">🟡 Medium</option>
+                      <option value="low">🟢 Low</option>
+                    </select>
+                    <select
+                      value={taskSort}
+                      onChange={(e) => setTaskSort(e.target.value as any)}
+                      className="text-sm border rounded px-2 py-1 flex-1"
+                    >
+                      <option value="date">Sort by Date</option>
+                      <option value="priority">Sort by Priority</option>
+                      <option value="status">Sort by Status</option>
+                      <option value="title">Sort by Title</option>
+                    </select>
+                  </div>
+
+                  {/* Show Completed Toggle */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="showCompleted"
+                      checked={showCompleted}
+                      onChange={(e) => setShowCompleted(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <label htmlFor="showCompleted" className="text-sm text-gray-700">
+                      Show completed tasks
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task List Content */}
+              <div className="p-4">
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {getFilteredAndSortedTasks().length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-8">
+                      {taskFilter === 'all' ? 'No tasks found' : `No ${taskFilter} priority tasks found`}
+                    </p>
+                  ) : (
+                    getFilteredAndSortedTasks().map((task) => (
+                      <div
+                        key={task.id}
+                        className={`p-3 rounded-lg border transition-all duration-200 ${
+                          task.status === 'completed' 
+                            ? 'bg-green-50 border-green-200 opacity-75' 
+                            : getPriorityColor(task.priority)
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Completion Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={task.status === 'completed'}
+                            onChange={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleQuickToggleTask(task);
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="mt-1 h-4 w-4 text-green-600 rounded focus:ring-green-500"
+                          />
+                          
+                          {/* Task Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                {task.status === 'completed' ? (
+                                  <span className="text-green-600 text-sm">✅</span>
+                                ) : (
+                                  getTaskTypeIcon(task.task_type)
+                                )}
+                                <span className={`font-medium text-sm ${
+                                  task.status === 'completed' ? 'line-through text-gray-600' : ''
+                                }`}>
+                                  {task.title}
+                                </span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditTask(task);
+                                }}
+                                className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                                title="Edit task"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                            
+                            {task.description && (
+                              <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                {task.description}
+                              </p>
+                            )}
+                            
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              {task.due_date && (
+                                <span>📅 {new Date(task.due_date).toLocaleDateString()}</span>
+                              )}
+                              {task.due_time && (
+                                <span>⏰ {task.due_time}</span>
+                              )}
+                              {task.target_count && (
+                                <span>🎯 {task.completed_count}/{task.target_count}</span>
+                              )}
+                            </div>
+                            
+                            <div className="mt-2">
+                              <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                task.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {task.status === 'completed' ? '✅ Completed' : 
+                                 task.status === 'in_progress' ? '🔄 In Progress' :
+                                 task.status === 'cancelled' ? '❌ Cancelled' :
+                                 '⏳ Pending'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Show Task List Button (when hidden) */}
+      {!showTaskList && (
+        <div className="fixed bottom-6 right-6">
+          <Button
+            onClick={() => setShowTaskList(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg"
+          >
+            <Eye className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
 
       {/* Task Form Modal */}
       <TaskForm
@@ -526,6 +970,7 @@ export const Calendar: React.FC<CalendarProps> = () => {
         isOpen={showTaskForm}
         onClose={closeAllForms}
         onSave={handleTaskSaved}
+        onCompletionToggle={handleTaskCompletionToggle}
         initialDate={selectedDate || undefined}
       />
 

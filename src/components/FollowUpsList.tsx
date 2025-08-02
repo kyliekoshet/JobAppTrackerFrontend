@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { FollowUp } from '../types/jobApplication';
 import { followUpsApi } from '../services/api';
@@ -33,7 +33,7 @@ export const FollowUpsList: React.FC<FollowUpsListProps> = ({
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null);
   const [expandedFollowUp, setExpandedFollowUp] = useState<number | null>(null);
 
-  const loadFollowUps = async () => {
+  const loadFollowUps = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -45,11 +45,15 @@ export const FollowUpsList: React.FC<FollowUpsListProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [applicationId]);
+
+  const loadFollowUpsCallback = useCallback(() => {
+    loadFollowUps();
+  }, [loadFollowUps]);
 
   useEffect(() => {
-    loadFollowUps();
-  }, [applicationId]);
+    loadFollowUpsCallback();
+  }, [loadFollowUpsCallback]);
 
   const handleAddFollowUp = () => {
     setEditingFollowUp(null);

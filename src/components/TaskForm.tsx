@@ -12,6 +12,7 @@ interface TaskFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (task: Task) => void;
+  onCompletionToggle?: (task: Task) => void;
   jobApplicationId?: number;
   initialDate?: string;
 }
@@ -21,6 +22,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   isOpen,
   onClose,
   onSave,
+  onCompletionToggle,
   jobApplicationId,
   initialDate
 }) => {
@@ -38,10 +40,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentTask, setCurrentTask] = useState<Task | null>(task || null);
+  const [isTogglingCompletion, setIsTogglingCompletion] = useState(false);
 
-  // Reset form when task prop changes
+  // Reset form when task prop changes (but not during completion toggle)
   useEffect(() => {
-    if (task) {
+    if (!isTogglingCompletion) {
+      setCurrentTask(task || null);
+    }
+    if (task && !isTogglingCompletion) {
       setFormData({
         title: task.title,
         description: task.description || '',
@@ -67,7 +74,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       });
     }
     setError(null);
-  }, [task, initialDate, jobApplicationId]);
+  }, [task, initialDate, jobApplicationId, isTogglingCompletion]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +84,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     try {
       let savedTask: Task;
       
-      if (task) {
+      if (currentTask) {
         // Update existing task - clean up empty strings
         const updateData: TaskUpdate = {
           title: formData.title,
@@ -91,7 +98,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           job_application_id: formData.job_application_id || undefined,
           calendar_event_id: formData.calendar_event_id || undefined
         };
-        savedTask = await tasksApi.update(task.id, updateData);
+        savedTask = await tasksApi.update(currentTask.id, updateData);
       } else {
         // Create new task - clean up empty strings
         const createData: TaskCreate = {
@@ -109,6 +116,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         savedTask = await tasksApi.create(createData);
       }
 
+      // Update local state if we're editing an existing task
+      if (currentTask) {
+        setCurrentTask(savedTask);
+      }
+      
       onSave(savedTask);
       onClose();
     } catch (err) {
@@ -124,6 +136,42 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleCompletionToggle = async () => {
+    if (!currentTask) return;
+    
+    try {
+      setIsTogglingCompletion(true);
+      setIsLoading(true);
+      
+      const newStatus = currentTask.status === 'completed' ? 'pending' : 'completed';
+      const updateData: TaskUpdate = {
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : undefined,
+        completed_count: newStatus === 'completed' ? (currentTask.target_count || 1) : 0
+      };
+      
+      const updatedTask = await tasksApi.update(currentTask.id, updateData);
+      
+      // Update the local task state immediately for UI feedback
+      setCurrentTask(updatedTask);
+      
+      // Use the completion toggle callback if available, otherwise use onSave
+      if (onCompletionToggle) {
+        onCompletionToggle(updatedTask);
+      } else {
+        onSave(updatedTask);
+      }
+      
+    } catch (error) {
+      console.error('Failed to toggle task completion:', error);
+      setError('Failed to update task status');
+    } finally {
+      setIsLoading(false);
+      // Reset the toggle flag after a short delay to allow UI to update
+      setTimeout(() => setIsTogglingCompletion(false), 100);
+    }
   };
 
   // Task type options with icons and descriptions
@@ -268,6 +316,33 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               required
             />
           </div>
+
+          {/* Completion Status - Only show for existing tasks */}
+          {currentTask && (
+            <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="completed"
+                checked={currentTask.status === 'completed'}
+                onChange={(e) => {
+                  e.preventDefault();
+                  handleCompletionToggle();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                disabled={isLoading}
+                className="h-5 w-5 text-green-600 rounded focus:ring-green-500 disabled:opacity-50"
+              />
+              <label htmlFor="completed" className="text-lg font-medium text-gray-700 cursor-pointer">
+                {isLoading ? '⏳ Updating...' : 
+                 currentTask.status === 'completed' ? '✅ Task Completed' : '⏳ Mark as Completed'}
+              </label>
+              {currentTask.status === 'completed' && !isLoading && (
+                <span className="text-sm text-green-600 font-medium">
+                  Great job! 🎉
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Description */}
           <div>

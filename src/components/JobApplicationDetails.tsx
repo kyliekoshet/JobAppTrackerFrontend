@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { JobApplication, JobApplicationWithFollowUps } from '../types/jobApplication';
 import { jobApplicationWithFollowUpsApi } from '../services/api';
@@ -34,7 +34,7 @@ export const JobApplicationDetails: React.FC<JobApplicationDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadApplicationDetails = async () => {
+  const loadApplicationDetails = useCallback(async () => {
     if (!application.id) return;
     
     try {
@@ -48,11 +48,15 @@ export const JobApplicationDetails: React.FC<JobApplicationDetailsProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [application.id]);
+
+  const loadApplicationDetailsCallback = useCallback(() => {
+    loadApplicationDetails();
+  }, [loadApplicationDetails]);
 
   useEffect(() => {
-    loadApplicationDetails();
-  }, [application.id]);
+    loadApplicationDetailsCallback();
+  }, [loadApplicationDetailsCallback]);
 
   const getStatusColor = (status: string) => {
     const colors = {
